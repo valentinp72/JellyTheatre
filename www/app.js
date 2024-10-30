@@ -7,7 +7,20 @@ import { getMoviesApi } from "https://cdn.skypack.dev/@jellyfin/sdk@0.10.0/lib/u
 import { getVideosApi } from "https://cdn.skypack.dev/@jellyfin/sdk@0.10.0/lib/utils/api/videos-api";
 import { v4 as uuidv4 } from "https://cdn.skypack.dev/uuid@8.3.2";
 
-import { SERVER_URL, ACCESS_TOKEN } from "./secrets.js"
+// import { SERVER_URL, ACCESS_TOKEN } from "./secrets.js"
+
+function getCookie(name) {
+	const value = `; ${document.cookie}`;
+	const parts = value.split(`; ${name}=`);
+	if (parts.length === 2) return parts.pop().split(';').shift();
+}
+
+const SERVER_URL = getCookie("serverUrl");
+const ACCESS_TOKEN = getCookie("accessToken");
+
+if (!SERVER_URL || !ACCESS_TOKEN) {
+	alert("Please go to cookies.html to setup the cookies." + SERVER_URL + ACCESS_TOKEN)
+}
 
 const jellyfin = new Jellyfin({
     clientInfo: {
@@ -37,13 +50,13 @@ text.setAttribute('value', movie_id);
 const video = document.getElementById('video-player');
 var videoSrc = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8';
 if (Hls.isSupported()) {
-	console.warning("HLS supported!")
+	console.warning("HLS supported!");
 	var hls = new Hls();
 	hls.loadSource(videoSrc);
 	hls.attachMedia(video);
 }
 else {
-	console.error("HLS not supported!")
+	console.error("HLS not supported!");
 }
 
 // const player = document.getElementById('video-player');

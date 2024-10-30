@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Set Cookies</title>
+    <script>
+        function setCookies() {
+            const serverUrl = document.getElementById('serverUrl').value;
+            const accessToken = document.getElementById('accessToken').value;
+
+            if (serverUrl && accessToken) {
+                // Set cookies with SameSite attribute
+                document.cookie = `serverUrl=${serverUrl}; path=/; SameSite=Lax`;
+                document.cookie = `accessToken=${accessToken}; path=/; SameSite=Lax`;
+                alert('Cookies set successfully!');
+            } else {
+                alert('Please fill in both fields.');
+            }
+        }
+    </script>
+</head>
+<body>
+    <h1>Set Server URL and Access Token</h1>
+    <input type="text" id="serverUrl" placeholder="Server URL" required>
+    <input type="text" id="accessToken" placeholder="Access Token" required>
+    <button onclick="setCookies()">Set Cookies</button>
+</body>
+</html>
+
