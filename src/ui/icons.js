@@ -12,6 +12,25 @@ function frame(x1, y1, x2, y2, thickness) {
 	return shape;
 }
 
+function circle(radius, segments = 32) {
+	const shape = new THREE.Shape();
+	shape.absarc(0, 0, radius, 0, Math.PI * 2, false);
+	return shape;
+}
+
+/** Gear: a ring with teeth. */
+function gear() {
+	const ring = circle(0.3);
+	ring.holes.push(circle(0.13));
+	const teeth = [];
+	for (let i = 0; i < 8; i++) {
+		const a = (i / 8) * Math.PI * 2;
+		const corner = (r, da) => [Math.cos(a + da) * r, Math.sin(a + da) * r];
+		teeth.push(poly(corner(0.26, -0.2), corner(0.45, -0.13), corner(0.45, 0.13), corner(0.26, 0.2)));
+	}
+	return [ring, ...teeth];
+}
+
 const speaker = () => [
 	rect(-0.42, -0.13, -0.24, 0.13),
 	poly([-0.24, -0.13], [0.02, -0.36], [0.02, 0.36], [-0.24, 0.13]),
@@ -36,6 +55,7 @@ const ICONS = {
 	],
 	volumeDown: () => [...speaker(), rect(0.14, -0.05, 0.46, 0.05)],
 	volumeUp: () => [...speaker(), rect(0.14, -0.05, 0.46, 0.05), rect(0.25, -0.16, 0.35, 0.16)],
+	settings: gear,
 };
 
 const geometryCache = new Map();

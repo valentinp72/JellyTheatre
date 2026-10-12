@@ -5,7 +5,7 @@ import { describeItem } from '../jellyfin/library.js';
 import { truncate } from './text.js';
 import { COLORS, entity, setInteractiveVisible, whenLoaded } from './widgets.js';
 
-const WIDTH = 0.74;
+const WIDTH = 0.82;
 const HEIGHT = 0.25;
 const BAR_WIDTH = 0.52;
 const BUTTON_SIZE = 0.068;
@@ -62,6 +62,7 @@ AFRAME.registerComponent('player-controls', {
 			['voldown', { icon: 'volumeDown', tooltip: 'Volume down' }, () => this.changeVolume(-0.1)],
 			['volup', { icon: 'volumeUp', tooltip: 'Volume up' }, () => this.changeVolume(0.1)],
 			['stop', { icon: 'stop', tooltip: 'Stop' }, () => this.el.emit('stop-request')],
+			['settings', { icon: 'settings', tooltip: 'Settings' }, () => this.el.emit('settings-request')],
 		];
 		const gap = 0.012;
 		const rowWidth = buttons.length * BUTTON_SIZE + (buttons.length - 1) * gap;

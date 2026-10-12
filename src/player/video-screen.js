@@ -22,6 +22,8 @@ AFRAME.registerComponent('video-screen', {
 		maxHeight: { type: 'number', default: 6.75 },
 		// The camera rig: the XR reference space follows it.
 		rig: { type: 'selector', default: '#rig' },
+		// Read the picture's color for the room lighting (off when nothing uses it).
+		sampleColor: { type: 'boolean', default: true },
 	},
 
 	init() {
@@ -215,6 +217,13 @@ AFRAME.registerComponent('video-screen', {
 
 	/** Emits the picture's average color and brightness on the scene. */
 	sampleColor() {
+		if (!this.data.sampleColor) {
+			if (this.sampling) {
+				this.sampling = false;
+				this.el.sceneEl.emit('screen-color', null);
+			}
+			return;
+		}
 		const showing = this.player?.isActive && this.video.readyState >= 2 && !this.samplingBroken;
 		if (!showing) {
 			if (this.sampling) {
@@ -237,9 +246,11 @@ AFRAME.registerComponent('video-screen', {
 			const scale = 1 / ((data.length / 4) * 255);
 			// Pixel values are sRGB: convert so the light gets the color we see.
 			const color = new THREE.Color().setRGB(r * scale, g * scale, b * scale, THREE.SRGBColorSpace);
-			const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+			// Brightness as perceived (on the sRGB values), 0 to 1.
+			const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) * scale;
 			this.sampling = true;
 			this.el.sceneEl.emit('screen-color', { color, luminance });
+
 		} catch (error) {
 			// A cross-origin video without CORS headers can't be read: no room lighting.
 			console.warn('[screen] cannot sample the video color', error);

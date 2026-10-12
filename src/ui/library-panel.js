@@ -10,7 +10,6 @@
 import { describeMedia, describeTranscodeReason } from '../jellyfin/device-profile.js';
 import { createSources, episodeNumber, resumeSeconds, runtimeLabel, SORTS } from '../jellyfin/library.js';
 import { resolvePlayback } from '../jellyfin/playback.js';
-import { getSetting, runSettingAction, setSetting, SETTING_DEFINITIONS } from '../settings.js';
 import { formatTime } from './player-controls.js';
 import { PLAYBACK_COLORS } from './poster.js';
 import { truncate } from './text.js';
@@ -75,10 +74,7 @@ AFRAME.registerComponent('library-panel', {
 		this.el.append(entity({ 'ui-rect': `width: ${WIDTH}; height: ${HEIGHT}; radius: 0.04; opacity: 0.95` }));
 		this.heading = entity({ position: `${LEFT} ${TOP - 0.065} 0.002`, 'ui-text': 'value: Now showing; fontSize: 0.05; weight: bold; anchorX: left' });
 		this.refreshButton = this.button({ label: 'Refresh', width: 0.18 }, RIGHT - 0.09, TOP - 0.065, () => this.el.emit('refresh-request'));
-		this.settingsButton = this.button({ label: 'Settings', width: 0.2 }, RIGHT - 0.18 - 0.02 - 0.1, TOP - 0.065, () => {
-			if (this.top()?.type !== 'settings') this.stack.push({ type: 'settings' });
-			this.render();
-		});
+		this.settingsButton = this.button({ label: 'Settings', width: 0.2 }, RIGHT - 0.18 - 0.02 - 0.1, TOP - 0.065, () => this.el.emit('settings-request'));
 		this.message = entity({ position: '0 0 0.002', 'ui-text': `fontSize: 0.036; maxWidth: ${WIDTH - 0.4}; align: center; color: ${COLORS.muted}` });
 		// In the header, between the title and the buttons: below the panel it
 		// would end up inside the stage when the panel is on the cinema screen.
@@ -90,11 +86,7 @@ AFRAME.registerComponent('library-panel', {
 		this.buildDetail();
 		this.buildSeries();
 		this.buildGenres();
-		this.buildSettings();
-		this.onSettingChange = () => {
-			if (this.top()?.type === 'settings') this.render();
-		};
-		window.addEventListener('settingchange', this.onSettingChange);
+
 
 		this.keyboard = this.data.keyboard;
 		this.keyboard.addEventListener('key', (event) => this.onKey(event.detail.key));
@@ -106,7 +98,6 @@ AFRAME.registerComponent('library-panel', {
 
 	remove() {
 		window.removeEventListener('keydown', this.onKeyDown);
-		window.removeEventListener('settingchange', this.onSettingChange);
 	},
 
 	// --- building blocks ---------------------------------------------------
@@ -306,51 +297,6 @@ AFRAME.registerComponent('library-panel', {
 		const pagerY = -TOP + 0.09;
 		this.genresPrev = this.button({ label: '‹ Previous', width: 0.26 }, -0.32, pagerY, () => this.setGenrePage(-1), this.genres);
 		this.genresNext = this.button({ label: 'Next ›', width: 0.26 }, 0.32, pagerY, () => this.setGenrePage(1), this.genres);
-	},
-
-	buildSettings() {
-		this.settings = entity();
-		this.el.appendChild(this.settings);
-		this.text({ value: 'Settings', fontSize: 0.05, weight: 'bold' }, LEFT, CONTENT_TOP + 0.01, this.settings);
-		this.button({ label: '‹ Back', width: 0.2 }, RIGHT - 0.1, CONTENT_TOP - 0.02, () => this.back(), this.settings);
-		// Two columns of settings.
-		const valueW = 0.18;
-		const columnGap = 0.08;
-		const columnW = (RIGHT - LEFT - columnGap) / 2;
-		const textWidth = columnW - valueW - 0.04;
-		const perColumn = Math.ceil(SETTING_DEFINITIONS.length / 2);
-		this.settingRows = SETTING_DEFINITIONS.map((setting, i) => {
-			const column = Math.floor(i / perColumn);
-			const x = LEFT + column * (columnW + columnGap);
-			const y = CONTENT_TOP - 0.12 - (i % perColumn) * 0.2;
-			this.text({ value: setting.label, fontSize: 0.03, maxWidth: textWidth }, x, y, this.settings);
-			this.text({ value: setting.description, fontSize: 0.022, color: COLORS.muted, maxWidth: textWidth, lineHeight: 1.3 }, x, y - 0.042, this.settings);
-			const value = this.button({ label: setting.action ?? '', width: valueW, height: 0.065 }, x + columnW - valueW / 2, y - 0.04, () => {
-				if (setting.type === 'action') {
-					runSettingAction(setting.name);
-				} else if (setting.type === 'choice') {
-					// Cycle through the options.
-					const index = setting.options.findIndex((option) => option.value === getSetting(setting.name));
-					setSetting(setting.name, setting.options[(index + 1) % setting.options.length].value);
-				} else {
-					setSetting(setting.name, !getSetting(setting.name));
-				}
-			}, this.settings);
-			return { setting, value };
-		});
-	},
-
-	renderSettings() {
-		for (const { setting, value } of this.settingRows) {
-			if (setting.type === 'action') continue;
-			if (setting.type === 'choice') {
-				const current = setting.options.find((option) => option.value === getSetting(setting.name));
-				value.setAttribute('ui-button', { label: current?.label ?? '', active: false });
-				continue;
-			}
-			const on = getSetting(setting.name);
-			value.setAttribute('ui-button', { label: on ? 'On' : 'Off', active: on });
-		}
 	},
 
 	chooseGenre(genre) {
@@ -600,7 +546,6 @@ AFRAME.registerComponent('library-panel', {
 		this.show(this.detail, signedIn && view?.type === 'detail');
 		this.show(this.series, signedIn && view?.type === 'series');
 		this.show(this.genres, signedIn && view?.type === 'genres');
-		this.show(this.settings, signedIn && view?.type === 'settings');
 		this.keyboard.components['ui-keyboard']?.setVisible(this.searchActive() && signedIn);
 		this.setMessage(signedIn ? '' : 'Sign in from the lobby to see your library.');
 		if (!signedIn || !this.visible) return;
@@ -608,7 +553,6 @@ AFRAME.registerComponent('library-panel', {
 		if (!view) this.renderGrid();
 		else if (view.type === 'detail') this.renderDetail(view);
 		else if (view.type === 'genres') this.renderGenres(view);
-		else if (view.type === 'settings') this.renderSettings();
 		else this.renderSeries(view);
 	},
 

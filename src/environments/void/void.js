@@ -55,7 +55,11 @@ AFRAME.registerComponent('void-environment', {
 		);
 		glow.rotation.x = -Math.PI / 2;
 		glow.position.set(0, 0.001, -3);
-		this.group.add(sky, glow);
+		// Invisible floor to teleport on.
+		const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ visible: false }));
+		floor.rotation.x = -Math.PI / 2;
+		floor.userData.teleport = true;
+		this.group.add(sky, glow, floor);
 		this.el.setObject3D('void', this.group);
 	},
 

@@ -83,6 +83,7 @@
 			<a-scene
 				xr-mode-ui="enabled: false"
 				webxr="optionalFeatures: bounded-floor, layers"
+				light="defaultLightsEnabled: false"
 				renderer="antialias: true; highRefreshRate: false; colorManagement: true"
 				loading-screen="dotsColor: #aa5cc3; backgroundColor: #0b0710"
 				background="color: #000000"
@@ -102,6 +103,11 @@
 					<a-entity id="keyboard" ui-keyboard position="0 0.8 -0.55" rotation="-40 0 0" scale="0.85 0.85 0.85"></a-entity>
 					<a-entity id="player-controls" player-controls grab-move="storageKey: jellytheatre.controlsPose" position="0 0.8 -0.55" rotation="-35 0 0"></a-entity>
 					<a-entity id="up-next" up-next position="0 1.05 -1.25" rotation="-10 0 0"></a-entity>
+					<!-- Settings: own panel, in front of the user, movable with the grip. -->
+					<a-entity id="settings-panel" settings-panel
+						grab-move="storageKey: jellytheatre.settingsPose"
+						panel-layer="width: 1.6; height: 1.12; radius: 0.035; pixelWidth: 1280; order: 2"
+						position="0 1.15 -1.25" rotation="-12 0 0"></a-entity>
 				</a-entity>
 				<a-entity cursor="rayOrigin: mouse; fuse: false" raycaster="objects: .clickable; far: 30"></a-entity>
 			</a-scene>

@@ -1,8 +1,11 @@
-// Lets the user move a panel: hold the grip button while pointing at it and
-// the panel follows the controller until the grip is released. The pose is
+// Lets the user move an object: hold the grip button while pointing at it and
+// it follows the controller until the grip is released. With `pushPull`, the
+// grabbing hand's stick (up/down) moves it further or closer. The pose is
 // remembered in this browser (localStorage) under `storageKey`.
 //
-// Emits `grab-start` and `grab-end` on the element.
+// While grabbing, the hand has the `grabbing` state (so other stick actions
+// can stand aside). Emits `grab-start`, `grab-moving` (every frame) and
+// `grab-end` on the element.
 
 import * as THREE from 'three';
 
@@ -10,6 +13,9 @@ AFRAME.registerComponent('grab-move', {
 	schema: {
 		hands: { type: 'selectorAll', default: '[laser-controls]' },
 		storageKey: { type: 'string', default: '' },
+		// Other entities that can be pointed at to grab this one.
+		handles: { type: 'selectorAll', default: '' },
+		pushPull: { type: 'boolean', default: false },
 	},
 
 	init() {
@@ -21,24 +27,41 @@ AFRAME.registerComponent('grab-move', {
 		this.defaultPosition = this.el.object3D.position.clone();
 		this.defaultQuaternion = this.el.object3D.quaternion.clone();
 		this.restore();
+		this.stickY = 0;
 
+		this.listeners = [];
+		const listen = (hand, type, handler) => {
+			hand.addEventListener(type, handler);
+			this.listeners.push([hand, type, handler]);
+		};
 		for (const hand of this.data.hands) {
-			hand.addEventListener('gripdown', () => {
+			listen(hand, 'gripdown', () => {
 				if (!this.hand && this.pointedBy(hand)) this.start(hand);
 			});
-			hand.addEventListener('gripup', () => {
+			listen(hand, 'gripup', () => {
 				if (this.hand === hand) this.end();
+			});
+			listen(hand, 'thumbstickmoved', (event) => {
+				if (this.hand === hand) this.stickY = event.detail.y;
 			});
 		}
 	},
 
+	remove() {
+		if (this.hand) this.end();
+		for (const [hand, type, handler] of this.listeners) hand.removeEventListener(type, handler);
+	},
+
 	pointedBy(hand) {
 		const hits = hand.components.raycaster?.intersectedEls ?? [];
-		return this.el.object3D.visible && hits.some((el) => this.el === el || this.el.contains(el));
+		const targets = [this.el, ...(this.data.handles ?? [])];
+		return this.el.object3D.visible && hits.some((hit) => targets.some((t) => t === hit || t.contains(hit)));
 	},
 
 	start(hand) {
 		this.hand = hand;
+		this.stickY = 0;
+		hand.addState('grabbing');
 		hand.object3D.updateMatrixWorld();
 		this.el.object3D.updateMatrixWorld();
 		this.offset.copy(hand.object3D.matrixWorld).invert().multiply(this.el.object3D.matrixWorld);
@@ -46,18 +69,25 @@ AFRAME.registerComponent('grab-move', {
 	},
 
 	end() {
+		this.hand.removeState('grabbing');
 		this.hand = null;
 		this.save();
 		this.el.emit('grab-end');
 	},
 
-	tick() {
+	tick(time, delta) {
 		if (!this.hand) return;
+		if (this.data.pushPull && Math.abs(this.stickY) > 0.2) {
+			// Along the controller's pointing direction (-Z): stick forward = further.
+			const step = this.stickY * 2.5 * (Math.min(delta, 100) / 1000);
+			this.offset.premultiply(new THREE.Matrix4().makeTranslation(0, 0, step));
+		}
 		const object = this.el.object3D;
 		this.matrix.copy(this.hand.object3D.matrixWorld).multiply(this.offset);
 		this.parentInverse.copy(object.parent.matrixWorld).invert();
 		this.matrix.premultiply(this.parentInverse);
 		this.matrix.decompose(object.position, object.quaternion, new THREE.Vector3());
+		this.el.emit('grab-moving', null, false);
 	},
 
 	save() {
@@ -82,10 +112,11 @@ AFRAME.registerComponent('grab-move', {
 		}
 	},
 
-	/** Back to the position from the HTML, and forget the saved one. */
+	/** Back to the default position, and forget the saved one. */
 	reset() {
 		this.el.object3D.position.copy(this.defaultPosition);
 		this.el.object3D.quaternion.copy(this.defaultQuaternion);
+		this.el.emit('grab-moving', null, false);
 		try {
 			localStorage.removeItem(this.data.storageKey);
 		} catch {

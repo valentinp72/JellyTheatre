@@ -75,5 +75,7 @@ AFRAME.registerComponent('player-input', {
 
 /** Whether a pointer's ray currently hits an interactive entity. */
 function pointsAtSomething(el) {
-	return (el.components.raycaster?.intersectedEls.length ?? 0) > 0;
+	// The screen can be pointed at to grab it (passthrough): still "nothing" here.
+	const hits = el.components.raycaster?.intersectedEls ?? [];
+	return hits.some((hit) => !hit.hasAttribute('data-trigger-passes'));
 }

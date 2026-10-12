@@ -148,9 +148,12 @@ public/               Static assets (icons…)
 - [x] **WebXR media layer**: in VR on Quest, the video is a compositor layer
       behind the scene (much sharper), with a texture fallback elsewhere.
 - [x] **5. Polish**
-  - [x] View: move around (left stick), snap turn and height (right stick),
-        recenter (right stick click), back to seat (left stick click), tilt
-        recenter for watching reclined.
+  - [x] View: teleport (push a stick forward to aim, release to jump; snaps
+        to theatre seats), snap turn (right stick), recenter that compensates
+        automatically when reclined (on the headset's own recenter: hold the
+        Meta button), back to seat (left stick click). In passthrough, the screen can be grabbed and moved.
+  - [x] Room brightness and screen light settings. Settings on their own movable panel, reachable
+        anytime (library header, or the gear on the controls during a film).
   - [x] Media quality and compatibility in menus: resolution / HDR badges and
         a direct play / remux / transcode indicator on posters; full details
         and the server's decision (with reasons) on the details page.

@@ -8,6 +8,7 @@ import './ui/keyboard.js';
 import './ui/poster.js';
 import './ui/library-panel.js';
 import './ui/up-next.js';
+import './ui/settings-panel.js';
 import './ui/icons.js';
 import './ui/grab-move.js';
 import { enableAllRaycastLayers } from './xr/panel-layer.js';
@@ -37,6 +38,7 @@ const rigEl = document.getElementById('rig');
 const libraryEl = document.getElementById('library-panel');
 const controlsEl = document.getElementById('player-controls');
 const upNextEl = document.getElementById('up-next');
+const settingsEl = document.getElementById('settings-panel');
 const backButton = document.getElementById('back-to-lobby');
 
 const player = new Player();
@@ -59,6 +61,7 @@ const sceneReady = new Promise((resolve) => {
 const library = () => libraryEl.components['library-panel'];
 const controls = () => controlsEl.components['player-controls'];
 const upNext = () => upNextEl.components['up-next'];
+const settings = () => settingsEl.components['settings-panel'];
 const environmentKey = () => (environments[getSetting('environment')] ? getSetting('environment') : DEFAULT_ENVIRONMENT);
 const environment = () => environmentEl.components[environments[currentEnvironment].component];
 
@@ -70,13 +73,13 @@ const environment = () => environmentEl.components[environments[currentEnvironme
 function placeLibrary() {
 	const object = libraryEl.object3D;
 	if (getSetting('menuOnScreen')) {
-		const { position, maxWidth, maxHeight } = environments[currentEnvironment].layout.screen;
+		const { maxWidth, maxHeight } = environments[currentEnvironment].layout.screen;
 		const scale = Math.min(maxWidth / 2.3, maxHeight / 1.42) * 0.96;
-		const world = new THREE.Matrix4().compose(
-			new THREE.Vector3(position.x, position.y, position.z + 0.05),
-			new THREE.Quaternion(),
-			new THREE.Vector3(scale, scale, scale),
-		);
+		// Follow the screen's actual pose (it can be moved in passthrough).
+		screenEl.object3D.updateMatrixWorld();
+		const world = new THREE.Matrix4()
+			.copy(screenEl.object3D.matrixWorld)
+			.multiply(new THREE.Matrix4().compose(new THREE.Vector3(0, 0, 0.05), new THREE.Quaternion(), new THREE.Vector3(scale, scale, scale)));
 		rigEl.object3D.updateMatrixWorld();
 		world.premultiply(new THREE.Matrix4().copy(rigEl.object3D.matrixWorld).invert());
 		world.decompose(object.position, object.quaternion, object.scale);
@@ -105,9 +108,44 @@ function setupEnvironment(key) {
 	screenEl.object3D.position.set(position.x, position.y, position.z);
 	screenEl.setAttribute('video-screen', { maxWidth, maxHeight });
 	rigEl.object3D.position.set(layout.seat.x, layout.seat.y, layout.seat.z);
+	screenEl.object3D.quaternion.identity();
+	updateColorSampling();
 	sceneEl.setAttribute('view-controls', { target: position, seat: layout.seat });
+	setScreenMovable(Boolean(layout.ar));
 	environment()?.setHouseLights(!player.isActive);
 	placeLibrary();
+}
+
+/**
+ * In passthrough the screen can be grabbed and moved (and its position is
+ * remembered); elsewhere it belongs to the room.
+ */
+function setScreenMovable(movable) {
+	if (movable) {
+		// Trigger presses still "pass through" it (they toggle the controls).
+		screenEl.setAttribute('data-trigger-passes', '');
+		screenEl.classList.add('clickable');
+		screenEl.setAttribute('grab-move', { storageKey: 'jellytheatre.screenPose.passthrough', handles: '#library-panel', pushPull: true });
+	} else {
+		screenEl.removeAttribute('grab-move');
+		screenEl.classList.remove('clickable');
+		screenEl.removeAttribute('data-trigger-passes');
+	}
+	screenMoved();
+}
+
+/** Things anchored to the screen follow it. */
+function screenMoved() {
+	screenEl.object3D.updateMatrixWorld();
+	const position = new THREE.Vector3().setFromMatrixPosition(screenEl.object3D.matrixWorld);
+	sceneEl.setAttribute('view-controls', 'target', position);
+	placeLibrary();
+}
+
+/** The picture is only read when the room is lit by it. */
+function updateColorSampling() {
+	const used = Boolean(environments[currentEnvironment]?.layout.screenLight) && getSetting('screenLight') !== 'off';
+	screenEl.setAttribute('video-screen', 'sampleColor', used);
 }
 
 /** Starts the immersive session the current environment needs. */
@@ -150,6 +188,15 @@ function showControls() {
 	hideControlsTimer = setTimeout(() => {
 		if (!player.video.paused && !grabbingControls) controls().setVisible(false);
 	}, CONTROLS_HIDE_DELAY_MS);
+}
+
+/** The settings panel can be opened anytime, even during a film. */
+function openSettings() {
+	settings().setVisible(true);
+}
+
+function closeSettings() {
+	settings().setVisible(false);
 }
 
 function startPlayback(item, startPosition, mediaSourceId) {
@@ -227,6 +274,7 @@ sceneReady.then(() => {
 	libraryEl.setAttribute('panel-layer', 'enabled', getSetting('crispLibrary'));
 	window.addEventListener('settingchange', ({ detail }) => {
 		if (detail.name === 'menuOnScreen') placeLibrary();
+		if (detail.name === 'screenLight') updateColorSampling();
 		if (detail.name === 'environment' && environmentKey() !== currentEnvironment) switchEnvironment(environmentKey());
 		if (detail.name === 'crispLibrary') libraryEl.setAttribute('panel-layer', 'enabled', detail.value);
 	});
@@ -236,8 +284,8 @@ sceneReady.then(() => {
 	window.addEventListener('settingaction', ({ detail }) => {
 		const view = sceneEl.components['view-controls'];
 		if (detail.name === 'resetControls') controlsEl.components['grab-move'].reset();
+		else if (detail.name === 'resetScreen') screenEl.components['grab-move']?.reset();
 		else if (detail.name === 'recenter') view.recenter();
-		else if (detail.name === 'tiltRecenter') view.recenter({ tilt: true });
 		else if (detail.name === 'backToSeat') view.backToSeat();
 	});
 	controlsEl.addEventListener('grab-start', () => {
@@ -254,6 +302,10 @@ sceneReady.then(() => {
 	libraryEl.addEventListener('play-item', ({ detail }) => startPlayback(detail.item, detail.startPosition, detail.mediaSourceId));
 	libraryEl.addEventListener('refresh-request', () => library().refresh());
 	controlsEl.addEventListener('activity', showControls);
+	controlsEl.addEventListener('settings-request', openSettings);
+	libraryEl.addEventListener('settings-request', openSettings);
+	settingsEl.addEventListener('close-request', closeSettings);
+	screenEl.addEventListener('grab-moving', screenMoved);
 	controlsEl.addEventListener('stop-request', async () => {
 		await player.stop();
 		backToHome();

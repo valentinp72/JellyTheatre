@@ -61,8 +61,14 @@ checkboxes up to date when a step is finished.
   offscreen cameras in world units (see `fitCamera` in src/xr/panel-layer.js).
 - Never rely on `video.volume` (ignored by the Quest Browser): volume goes
   through the Web Audio gain in Player.
-- User settings live in src/settings.js (`SETTING_DEFINITIONS`); the in-VR
-  settings page is generated from that list. No settings in the 2D lobby.
+- User settings live in src/settings.js (`SETTING_DEFINITIONS`, types
+  boolean / choice / action); the in-VR settings panel (src/ui/settings-panel.js)
+  is generated from that list. No settings in the 2D lobby.
+- A-Frame's default lights are disabled (`light="defaultLightsEnabled: false"`
+  on the scene): environments create their own three.js lights, which
+  A-Frame doesn't count, so its defaults would otherwise flood the room.
+- Recenter is tied to the headset's own recenter (reference space `reset`
+  event): don't add a separate recenter button on the controllers.
 - Icons are geometry (src/ui/icons.js), not font glyphs: the bundled Inter
   subset lacks most symbols. Icon buttons should set a `tooltip`.
 - The playback mode badge (Direct play / Remux / Transcoding) must stay
@@ -71,6 +77,9 @@ checkboxes up to date when a step is finished.
   `src/environments/index.js` with a layout (screen anchor, seat, `ar` for
   passthrough) and must implement `setHouseLights(on)`. The player and menus
   are environment-agnostic.
+- Teleport surfaces are meshes with `userData.teleport = true` (only faces
+  pointing up count); an environment may implement `snapTeleport(point)`.
+  No continuous locomotion: it makes the user sick.
 - In passthrough A-Frame sets the `ar-mode` state, *not* `vr-mode`: check both
   when testing for an immersive session.
 - The camera rig moves (walking, recentering, tilt): anything placed in world
