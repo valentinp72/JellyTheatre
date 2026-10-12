@@ -158,6 +158,12 @@ public/               Static assets (icons…)
         a direct play / remux / transcode indicator on posters; full details
         and the server's decision (with reasons) on the details page.
   - [x] Room lighting that follows the colours on screen.
+  - [x] Environment kit (src/environments/kit/): reusable textures,
+        geometry, merged static builder, instanced seating and lighting.
+  - [x] Theatre rebuilt with the kit: stadium seating in three blocks, lit
+        aisle steps, acoustic wall bays with sconces and surround speakers,
+        stage, proscenium and folded curtains, exit doors, lit ceiling,
+        projection booth with a beam that takes the picture's colour.
   - [x] Environments: theatre, dark void, passthrough ("My room", an
         immersive-ar session with the screen in your real room).
   - [x] Image subtitles (PGS) rendered client-side (libpgs), never burned in.

@@ -2,6 +2,7 @@
 // Nothing but the screen to look at.
 
 import * as THREE from 'three';
+import { defineEnvironment } from '../kit/environment.js';
 
 export const voidLayout = {
 	screen: { position: { x: 0, y: 2.6, z: -8 }, maxWidth: 10, maxHeight: 5.6 },
@@ -38,9 +39,8 @@ function glowTexture() {
 	return texture;
 }
 
-AFRAME.registerComponent('void-environment', {
-	init() {
-		this.group = new THREE.Group();
+defineEnvironment('void', {
+	build(env) {
 		const sky = new THREE.Mesh(
 			new THREE.SphereGeometry(60, 32, 16),
 			new THREE.MeshBasicMaterial({
@@ -59,15 +59,6 @@ AFRAME.registerComponent('void-environment', {
 		const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ visible: false }));
 		floor.rotation.x = -Math.PI / 2;
 		floor.userData.teleport = true;
-		this.group.add(sky, glow, floor);
-		this.el.setObject3D('void', this.group);
-	},
-
-	setHouseLights() {
-		// No lights to dim here.
-	},
-
-	remove() {
-		this.el.removeObject3D('void');
+		env.group.add(sky, glow, floor);
 	},
 });

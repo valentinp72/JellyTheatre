@@ -73,10 +73,19 @@ checkboxes up to date when a step is finished.
   subset lacks most symbols. Icon buttons should set a `tooltip`.
 - The playback mode badge (Direct play / Remux / Transcoding) must stay
   accurate: it is how transcoding regressions get noticed.
-- Environments live in `src/environments/<name>/`, are registered in
-  `src/environments/index.js` with a layout (screen anchor, seat, `ar` for
-  passthrough) and must implement `setHouseLights(on)`. The player and menus
-  are environment-agnostic.
+- Environments live in `src/environments/<name>/`, are declared with
+  `defineEnvironment(name, { build(env) })` (src/environments/kit/environment.js)
+  and registered in `src/environments/index.js` with a layout (screen anchor,
+  seat, `screenLight`, `ar` for passthrough). The player and menus are
+  environment-agnostic.
+- Build environments from the kit (src/environments/kit/): `StaticBuilder`
+  (merges static geometry per material; `walkable` for teleport surfaces),
+  `textures` (procedural, cached; no image assets), `geometry` (rounded boxes,
+  folded curtains, stairs, metre-tiled UVs), `SeatRows` + `cinemaSeat`
+  (instanced seats, teleport snapping), `EnvironmentLighting` (house lights,
+  fixtures and glows that dim, screen light, `onScreen` effects).
+- Quest budget for an environment: ~50 draw calls and ~150k triangles (it is
+  drawn once per eye). Keep instanced models low-poly.
 - Teleport surfaces are meshes with `userData.teleport = true` (only faces
   pointing up count); an environment may implement `snapTeleport(point)`.
   No continuous locomotion: it makes the user sick.

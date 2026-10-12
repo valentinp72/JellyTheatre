@@ -2,6 +2,7 @@
 // (immersive-ar session on Quest).
 
 import * as THREE from 'three';
+import { defineEnvironment } from '../kit/environment.js';
 
 export const passthroughLayout = {
 	// A 3.2 m screen, 3.5 m in front of the seat, at a comfortable height.
@@ -10,20 +11,12 @@ export const passthroughLayout = {
 	ar: true,
 };
 
-AFRAME.registerComponent('passthrough-environment', {
-	init() {
+defineEnvironment('passthrough', {
+	build(env) {
 		// Invisible floor (your real floor) to teleport on.
 		const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshBasicMaterial({ visible: false }));
 		floor.rotation.x = -Math.PI / 2;
 		floor.userData.teleport = true;
-		this.el.setObject3D('floor', floor);
-	},
-
-	remove() {
-		this.el.removeObject3D('floor');
-	},
-
-	setHouseLights() {
-		// Your room's lights are yours to dim.
+		env.group.add(floor);
 	},
 });

@@ -1,341 +1,309 @@
-// A classic movie theatre, built procedurally so it stays light on a standalone
-// headset: seats are instanced (3 draw calls for ~250 seats), materials are
-// Lambert, and only 3 lights are used.
+// The movie theatre: stadium seating in a centre block and two side blocks,
+// aisles with lit steps, acoustic wall bays with sconces and surround
+// speakers, a stage with a proscenium and folded curtains, exit doors, a lit
+// ceiling, and a projection booth whose beam takes the picture's color.
 //
-// Coordinates: the screen wall faces +z; the viewer looks towards -z.
+// Built from the environment kit (src/environments/kit/): static parts are
+// merged by material, seats are instanced. Coordinates: the screen wall faces
+// +z, the viewer looks towards -z.
 
 import * as THREE from 'three';
-import { getSetting } from '../../settings.js';
+import { StaticBuilder } from '../kit/builder.js';
+import { defineEnvironment } from '../kit/environment.js';
+import { box, foldedCurtain, tiledBox, tiledPlane } from '../kit/geometry.js';
+import { EnvironmentLighting, glowMaterial } from '../kit/lighting.js';
+import { cinemaSeat, SeatRows } from '../kit/seating.js';
+import * as textures from '../kit/textures.js';
 
-const ROOM = { width: 16, height: 10, front: -13, back: 11 };
-const ROW_COUNT = 13;
-const ROW_SPACING = 1.1;
-const FIRST_ROW_Z = -6;
-// Steep stadium seating: every row rises enough that the row in front never
-// hides the bottom of the screen, even for a viewer sitting low.
-const TIER_HEIGHT = 0.35;
-const SEAT_WIDTH = 0.6;
-const SEATS_PER_ROW = 19;
-const VIEWER_ROW = 5;
+const ROOM = { halfWidth: 10, front: -14, back: 12, height: 11 };
+const SCREEN = { x: 0, y: 4.9, z: -13.3, maxWidth: 12.5, maxHeight: 7 };
+const STAGE = { top: 1, front: -12 };
 
-const rowZ = (row) => FIRST_ROW_Z + row * ROW_SPACING;
-const rowFloor = (row) => row * TIER_HEIGHT;
+// Stadium seating: every row is 40 cm above the previous one, enough for the
+// row in front never to hide the bottom of the screen.
+const ROWS = 12;
+const ROW_PITCH = 1.15;
+const FIRST_ROW_Z = -6.4;
+const RISE = 0.4;
+const SEAT_WIDTH = 0.62;
+const CENTER_SEATS = 15;
+const SIDE_SEATS = 5;
+const AISLE_WIDTH = 1.3;
+const VIEWER_ROW = 6;
 
-/** What the app needs to know about this environment. */
+const rowZ = (row) => FIRST_ROW_Z + row * ROW_PITCH;
+const rowFloor = (row) => row * RISE;
+
+const centerHalf = (CENTER_SEATS * SEAT_WIDTH) / 2;
+const aisles = [-1, 1].map((side) => {
+	const inner = side * centerHalf;
+	const outer = side * (centerHalf + AISLE_WIDTH);
+	return { from: Math.min(inner, outer), to: Math.max(inner, outer) };
+});
+/** Seating segments across the room: blocks and aisles (aisles have half-steps). */
+const SEGMENTS = [
+	{ from: -ROOM.halfWidth, to: aisles[0].from, aisle: false },
+	{ ...aisles[0], aisle: true },
+	{ from: aisles[0].to, to: aisles[1].from, aisle: false },
+	{ ...aisles[1], aisle: true },
+	{ from: aisles[1].to, to: ROOM.halfWidth, aisle: false },
+];
+
 export const theaterLayout = {
-	// Lit by the picture (see the "Screen light" setting).
-	screenLight: true,
-	screen: { position: { x: 0, y: 4.6, z: -11.9 }, maxWidth: 12, maxHeight: 6.75 },
+	screen: { position: { x: SCREEN.x, y: SCREEN.y, z: SCREEN.z }, maxWidth: SCREEN.maxWidth, maxHeight: SCREEN.maxHeight },
 	// Rig position: floor of the middle seat of the viewer row.
 	seat: { x: 0, y: rowFloor(VIEWER_ROW), z: rowZ(VIEWER_ROW) },
+	// Lit by the picture (see the "Screen light" setting).
+	screenLight: true,
 };
 
-const WHITE = new THREE.Color(1, 1, 1);
-const IDLE_GLOW = 6;
-const IDLE_GLOW_COLOR = '#c8d0ff';
-// "Room brightness" setting: multiplier of the house lights.
-const BRIGHTNESS = { dark: 0.08, dim: 0.2, normal: 0.45, bright: 0.8 };
-// "Screen light" setting: strength of the light coming from the picture.
-const SCREEN_LIGHT = { off: 0, subtle: 0.5, strong: 1 };
-const HOUSE_LIGHTS_UP = 1;
-// During the film the house lights are off: the screen lights the room.
-const HOUSE_LIGHTS_DOWN = 0;
-
-function curtainTexture() {
-	const canvas = document.createElement('canvas');
-	canvas.width = 256;
-	canvas.height = 4;
-	const ctx = canvas.getContext('2d');
-	for (let x = 0; x < canvas.width; x++) {
-		const fold = 0.55 + 0.45 * Math.sin((x / canvas.width) * Math.PI * 2 * 8) ** 2;
-		ctx.fillStyle = `rgb(${Math.round(150 * fold)}, ${Math.round(28 * fold)}, ${Math.round(42 * fold)})`;
-		ctx.fillRect(x, 0, 1, canvas.height);
+function seatPositions() {
+	const sideStart = centerHalf + AISLE_WIDTH + SEAT_WIDTH / 2;
+	const xs = [];
+	for (let i = 0; i < CENTER_SEATS; i++) xs.push((i - (CENTER_SEATS - 1) / 2) * SEAT_WIDTH);
+	for (let i = 0; i < SIDE_SEATS; i++) {
+		const x = sideStart + i * SEAT_WIDTH;
+		xs.push(x, -x);
 	}
-	const texture = new THREE.CanvasTexture(canvas);
-	texture.colorSpace = THREE.SRGBColorSpace;
-	texture.wrapS = THREE.RepeatWrapping;
-	return texture;
+	return Array.from({ length: ROWS }, (_, row) => ({ z: rowZ(row), floor: rowFloor(row), xs }));
 }
 
-function box(width, height, depth, material, x, y, z) {
-	const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
-	mesh.position.set(x, y, z);
-	return mesh;
-}
+defineEnvironment('theater', {
+	build(env) {
+		const b = new StaticBuilder();
+		const lambert = (options) => new THREE.MeshLambertMaterial(options);
+		const basic = (options) => new THREE.MeshBasicMaterial(options);
 
-/** Marks a mesh as a surface the user can teleport onto (its upward faces). */
-function walkable(mesh) {
-	mesh.userData.teleport = true;
-	return mesh;
-}
+		const m = {
+			carpet: lambert({ map: textures.carpet() }),
+			wall: lambert({ color: '#3c383b' }),
+			acoustic: lambert({ map: textures.acousticPanel('#57505a') }),
+			wood: lambert({ map: textures.wood('#4a2f20') }),
+			dark: lambert({ color: '#151315' }),
+			black: basic({ color: '#050405' }),
+			trim: lambert({ color: '#2a2729' }),
+			velvet: lambert({ map: textures.velvet('#8a1c2b'), side: THREE.DoubleSide }),
+			ceiling: lambert({ map: textures.ceilingTiles('#2a272b') }),
+			speaker: lambert({ map: textures.grille() }),
+			seatFabric: lambert({ map: textures.fabric('#7a4a52') }),
+			seatFrame: lambert({ color: '#262325' }),
+			// Light fixtures (emissive, dim with the house lights).
+			sconce: basic({ color: '#ffd9a3' }),
+			cove: basic({ color: '#ffb070' }),
+			downlight: basic({ color: '#fff1d6' }),
+			stepLight: basic({ color: '#ffb35c' }),
+			stageLight: basic({ color: '#ffb35c' }),
+			booth: basic({ color: '#7f93c9' }),
+			// Exit signs stay lit during the film, but softly (the color dims the texture).
+			exit: basic({ map: textures.sign('EXIT'), color: '#6f8576' }),
+			sconceGlow: glowMaterial(textures.glow(), '#ffcf8a', 0.55),
+			exitGlow: glowMaterial(textures.glow(), '#2bff8a', 0.1),
+		};
 
-AFRAME.registerComponent('theater-environment', {
-	init() {
-		this.group = new THREE.Group();
-		this.el.setObject3D('theater', this.group);
-		this.brightness = BRIGHTNESS[getSetting('roomBrightness')] ?? 1;
-		this.lightLevel = HOUSE_LIGHTS_UP;
-		this.lightTarget = HOUSE_LIGHTS_UP;
+		buildShell(b, m);
+		buildSeating(b, m);
+		buildWalls(b, m);
+		buildScreenWall(b, m);
+		buildBackWall(b, m);
+		env.group.add(b.build());
 
-		// Neutral, fairly light surfaces: they show the color of the screen light
-		// (dark or saturated ones only show its brightness).
-		const wall = new THREE.MeshLambertMaterial({ color: '#4a4447' });
-		const floor = new THREE.MeshLambertMaterial({ color: '#3a3537' });
-		const ceiling = new THREE.MeshLambertMaterial({ color: '#1e1b1d' });
-		const black = new THREE.MeshBasicMaterial({ color: '#050405' });
+		env.seats = new SeatRows({ rows: seatPositions(), model: cinemaSeat({ width: SEAT_WIDTH }), fabric: m.seatFabric, frame: m.seatFrame });
 
-		this.buildRoom(wall, floor, ceiling);
-		this.buildScreenWall(black);
-		this.buildSeating(floor);
-		this.buildLights();
-	},
-
-	buildRoom(wall, floor, ceiling) {
-		const { width, height, front, back } = ROOM;
-		const depth = back - front;
-		const room = new THREE.Mesh(
-			new THREE.BoxGeometry(width, height, depth),
-			// +x, -x, +y (ceiling), -y (floor), +z, -z
-			[wall, wall, ceiling, floor, wall, wall],
-		);
-		room.material = room.material.map((m) => {
-			const clone = m.clone();
-			clone.side = THREE.BackSide;
-			return clone;
+		const lighting = new EnvironmentLighting(env.group, {
+			sceneEl: env.sceneEl,
+			screenLightPosition: new THREE.Vector3(0, SCREEN.y - 0.3, SCREEN.z + 2),
+			screenLightDistance: 34,
 		});
-		room.position.set(0, height / 2, (front + back) / 2);
-		this.group.add(walkable(room));
+		lighting.addFixture(m.sconce);
+		lighting.addFixture(m.cove);
+		lighting.addFixture(m.downlight);
+		lighting.addGlow(m.sconceGlow);
+		// Steps and stage edge stay faintly lit, so you can see where you walk.
+		lighting.addFixture(m.stepLight, { min: 0.3 });
+		lighting.addFixture(m.stageLight, { min: 0.12 });
+		// The booth window stays lit: the projector is on.
+		lighting.addFixture(m.booth, { min: 0.6, followBrightness: false });
+		env.lighting = lighting;
 
-		// Acoustic panels on the side walls.
-		const panel = new THREE.MeshLambertMaterial({ color: '#5a5357' });
-		for (let z = front + 3; z < back - 1; z += 3) {
-			for (const side of [-1, 1]) {
-				this.group.add(box(0.08, 4, 2.4, panel, side * (width / 2 - 0.04), 4.5, z));
-			}
-		}
-
-		// Stage under the screen.
-		this.group.add(walkable(box(width, 1.1, 1.6, floor, 0, 0.55, front + 0.8)));
-	},
-
-	buildScreenWall(black) {
-		const { position, maxWidth, maxHeight } = theaterLayout.screen;
-		// Black masking around the screen.
-		const masking = new THREE.Mesh(new THREE.PlaneGeometry(maxWidth + 1.2, maxHeight + 1.2), black);
-		masking.position.set(position.x, position.y, position.z - 0.05);
-		this.group.add(masking);
-
-		const texture = curtainTexture();
-		const curtain = new THREE.MeshLambertMaterial({ map: texture });
-		const sideWidth = (ROOM.width - maxWidth - 1.2) / 2;
-		for (const side of [-1, 1]) {
-			const geometry = new THREE.PlaneGeometry(sideWidth, ROOM.height - 0.5);
-			const mesh = new THREE.Mesh(geometry, curtain);
-			mesh.position.set(side * (ROOM.width / 2 - sideWidth / 2), (ROOM.height - 0.5) / 2 + 0.5, ROOM.front + 0.3);
-			this.group.add(mesh);
-		}
-		const valance = new THREE.Mesh(new THREE.PlaneGeometry(ROOM.width, 1.4), curtain.clone());
-		valance.material.map = texture.clone();
-		valance.material.map.repeat.set(4, 1);
-		valance.position.set(0, ROOM.height - 0.7, ROOM.front + 0.35);
-		this.group.add(valance);
-	},
-
-	buildSeating(floorMaterial) {
-		// Stadium tiers.
-		for (let row = 0; row < ROW_COUNT; row++) {
-			const h = rowFloor(row);
-			if (h > 0) this.group.add(walkable(box(ROOM.width, h, ROW_SPACING, floorMaterial, 0, h / 2, rowZ(row))));
-		}
-		// Back tier fills up to the back wall.
-		const lastH = rowFloor(ROW_COUNT - 1);
-		const backDepth = ROOM.back - (rowZ(ROW_COUNT - 1) + ROW_SPACING / 2);
-		this.group.add(walkable(box(ROOM.width, lastH, backDepth, floorMaterial, 0, lastH / 2, ROOM.back - backDepth / 2)));
-
-		// Muted red: still reflects some of a green or blue light.
-		const fabric = new THREE.MeshLambertMaterial({ color: '#7a4a52' });
-		const frame = new THREE.MeshLambertMaterial({ color: '#1c1418' });
-		const cushionGeo = new THREE.BoxGeometry(SEAT_WIDTH - 0.08, 0.14, 0.5);
-		const backGeo = new THREE.BoxGeometry(SEAT_WIDTH - 0.08, 0.6, 0.1);
-		const armGeo = new THREE.BoxGeometry(0.07, 0.08, 0.55);
-		const armSupportGeo = new THREE.BoxGeometry(0.07, 0.6, 0.5);
-		armGeo.translate(0, 0.31, 0);
-		armSupportGeo.translate(0, 0, 0.02);
-		const armMerged = mergeBoxes([armGeo, armSupportGeo]);
-
-		const seatCount = ROW_COUNT * SEATS_PER_ROW;
-		const cushions = new THREE.InstancedMesh(cushionGeo, fabric, seatCount);
-		const backs = new THREE.InstancedMesh(backGeo, fabric, seatCount);
-		const arms = new THREE.InstancedMesh(armMerged, frame, ROW_COUNT * (SEATS_PER_ROW + 1));
-		const m = new THREE.Matrix4();
-		const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(-0.18, 0, 0));
-		const one = new THREE.Vector3(1, 1, 1);
-		const identity = new THREE.Quaternion();
-		let seat = 0;
-		let arm = 0;
-		const rowStart = -((SEATS_PER_ROW - 1) * SEAT_WIDTH) / 2;
-		for (let row = 0; row < ROW_COUNT; row++) {
-			const y = rowFloor(row);
-			const z = rowZ(row);
-			for (let i = 0; i < SEATS_PER_ROW; i++) {
-				const x = rowStart + i * SEAT_WIDTH;
-				cushions.setMatrixAt(seat, m.compose(new THREE.Vector3(x, y + 0.42, z), identity, one));
-				backs.setMatrixAt(seat, m.compose(new THREE.Vector3(x, y + 0.78, z + 0.3), q, one));
-				seat++;
-			}
-			for (let i = 0; i <= SEATS_PER_ROW; i++) {
-				const x = rowStart - SEAT_WIDTH / 2 + i * SEAT_WIDTH;
-				arms.setMatrixAt(arm++, m.compose(new THREE.Vector3(x, y + 0.3, z + 0.02), identity, one));
-			}
-		}
-		this.group.add(cushions, backs, arms);
-
-		// Aisle step lights along both side aisles.
-		this.stepLightMaterial = new THREE.MeshBasicMaterial({ color: '#ffb35c' });
-		const stepGeo = new THREE.BoxGeometry(0.5, 0.03, 0.03);
-		const steps = new THREE.InstancedMesh(stepGeo, this.stepLightMaterial, ROW_COUNT * 2);
-		let step = 0;
-		for (let row = 0; row < ROW_COUNT; row++) {
-			for (const side of [-1, 1]) {
-				const pos = new THREE.Vector3(side * (ROOM.width / 2 - 1.1), rowFloor(row) + 0.02, rowZ(row) - ROW_SPACING / 2 + 0.02);
-				steps.setMatrixAt(step++, m.compose(pos, identity, one));
-			}
-		}
-		this.group.add(steps);
-	},
-
-	buildLights() {
-		this.ambient = new THREE.AmbientLight('#ffe9d6', 0.5);
-		this.hemi = new THREE.HemisphereLight('#ffd9b0', '#2a1820', 1.2);
-		// Light from the screen: a point light in front of it for the shading,
-		// and a uniform tint of the whole room with the picture's color.
-		this.screenLight = new THREE.PointLight('#c8d0ff', 6, 30, 1);
-		this.screenLight.position.set(0, 4, -10);
-		this.spill = new THREE.AmbientLight('#000000', 0);
-		this.group.add(this.ambient, this.hemi, this.screenLight, this.spill);
-
-		// Wall sconces (emissive, dim with the house lights).
-		this.sconceMaterial = new THREE.MeshBasicMaterial({ color: '#ffcf8a' });
-		const sconceGeo = new THREE.BoxGeometry(0.06, 0.5, 0.25);
-		for (let z = ROOM.front + 4.5; z < ROOM.back - 1; z += 3) {
-			for (const side of [-1, 1]) {
-				const sconce = new THREE.Mesh(sconceGeo, this.sconceMaterial);
-				sconce.position.set(side * (ROOM.width / 2 - 0.05), 3.2, z);
-				this.group.add(sconce);
-			}
-		}
-		this.applyLights(this.lightLevel);
-
-		// The screen light follows the picture (see video-screen's `screen-color`).
-		this.glowColor = new THREE.Color(IDLE_GLOW_COLOR);
-		this.glowTarget = new THREE.Color(IDLE_GLOW_COLOR);
-		this.glowIntensity = IDLE_GLOW;
-		this.glowIntensityTarget = IDLE_GLOW * this.brightness;
-		this.spillIntensity = 0;
-		this.spillTarget = 0;
-		this.onScreenColor = (event) => {
-			const strength = SCREEN_LIGHT[getSetting('screenLight')] ?? 1;
-			if (event.detail) {
-				// The light takes the picture's hue at full brightness (films are mostly
-				// dark and desaturated: boost the saturation so the tint reads); only
-				// its intensity follows how bright the picture is.
-				const hsl = event.detail.color.getHSL({});
-				this.glowTarget.setHSL(hsl.h, Math.min(1, hsl.s * 2), 0.5);
-				const max = Math.max(this.glowTarget.r, this.glowTarget.g, this.glowTarget.b);
-				if (max > 0) this.glowTarget.multiplyScalar(1 / max);
-				else this.glowTarget.setRGB(1, 1, 1);
-				// Mostly tint, a little white: a pure green light would leave the red
-				// seats black; this way the tint shows and everything still follows
-				// the brightness.
-				this.glowTarget.lerp(WHITE, 0.2);
-				const brightness = event.detail.luminance;
-				this.glowIntensityTarget = (0.3 + 14 * brightness) * strength;
-				this.spillTarget = (0.01 + 0.5 * brightness) * strength;
-			} else {
-				this.glowTarget.set(IDLE_GLOW_COLOR);
-				this.glowIntensityTarget = IDLE_GLOW * this.brightness;
-				this.spillTarget = 0;
-			}
-		};
-		this.el.sceneEl.addEventListener('screen-color', this.onScreenColor);
-		this.onSettingChange = ({ detail }) => {
-			if (detail.name === 'roomBrightness') {
-				this.brightness = BRIGHTNESS[detail.value] ?? 1;
-				this.applyLights(this.lightLevel);
-			}
-		};
-		window.addEventListener('settingchange', this.onSettingChange);
-	},
-
-	/** Dims or raises the house lights (smoothly). */
-	/**
-	 * Teleporting into the seating area lands on the nearest seat (where you
-	 * would sit); the aisles, the front and the stage are free.
-	 */
-	snapTeleport(point) {
-		const rowStart = -((SEATS_PER_ROW - 1) * SEAT_WIDTH) / 2;
-		const inSeatsX = Math.abs(point.x) <= -rowStart + SEAT_WIDTH / 2;
-		const row = Math.round((point.z - FIRST_ROW_Z) / ROW_SPACING);
-		if (!inSeatsX || row < 0 || row >= ROW_COUNT) return null;
-		const seat = THREE.MathUtils.clamp(Math.round((point.x - rowStart) / SEAT_WIDTH), 0, SEATS_PER_ROW - 1);
-		return new THREE.Vector3(rowStart + seat * SEAT_WIDTH, rowFloor(row), rowZ(row));
-	},
-
-	setHouseLights(on) {
-		this.lightTarget = on ? HOUSE_LIGHTS_UP : HOUSE_LIGHTS_DOWN;
-	},
-
-	applyLights(level) {
-		const b = this.brightness;
-		this.ambient.intensity = 0.45 * level * b;
-		this.hemi.intensity = 1.4 * level * b;
-		this.sconceMaterial.color.setRGB(1, 0.81, 0.54).multiplyScalar(0.04 + 0.96 * level * Math.min(1, b * 2));
-		// Aisle step lights stay faintly on, so you can see the stairs in the dark.
-		this.stepLightMaterial.color.setRGB(1, 0.7, 0.36).multiplyScalar(0.25 + 0.75 * level * Math.min(1, b * 2));
-		// The idle screen glow follows the brightness too.
-		if (this.spillTarget === 0) this.glowIntensityTarget = IDLE_GLOW * b;
-	},
-
-	tick(time, delta) {
-		// Ease the screen light towards the picture's color (~0.3 s).
-		const k = Math.min(1, delta / 300);
-		this.glowColor.lerp(this.glowTarget, k);
-		this.glowIntensity += (this.glowIntensityTarget - this.glowIntensity) * k;
-		this.spillIntensity += (this.spillTarget - this.spillIntensity) * k;
-		this.screenLight.color.copy(this.glowColor);
-		this.screenLight.intensity = this.glowIntensity;
-		this.spill.color.copy(this.glowColor);
-		this.spill.intensity = this.spillIntensity;
-
-		if (this.lightLevel === this.lightTarget) return;
-		const step = (delta / 1000) / 2; // full fade in ~2 s
-		this.lightLevel = this.lightTarget > this.lightLevel
-			? Math.min(this.lightTarget, this.lightLevel + step)
-			: Math.max(this.lightTarget, this.lightLevel - step);
-		this.applyLights(this.lightLevel);
-	},
-
-	remove() {
-		this.el.sceneEl.removeEventListener('screen-color', this.onScreenColor);
-		window.removeEventListener('settingchange', this.onSettingChange);
-		this.el.removeObject3D('theater');
+		env.group.add(projectorBeam(lighting));
 	},
 });
 
-/** Merges non-indexed copies of box geometries (positions + normals) into one. */
-function mergeBoxes(geometries) {
-	const parts = geometries.map((g) => g.toNonIndexed());
-	const count = parts.reduce((sum, g) => sum + g.attributes.position.count, 0);
-	const position = new Float32Array(count * 3);
-	const normal = new Float32Array(count * 3);
-	let offset = 0;
-	for (const g of parts) {
-		position.set(g.attributes.position.array, offset * 3);
-		normal.set(g.attributes.normal.array, offset * 3);
-		offset += g.attributes.position.count;
+/** Floor, ceiling, walls, stage. */
+function buildShell(b, m) {
+	const { halfWidth, front, back, height } = ROOM;
+	const depth = back - front;
+	const midZ = (front + back) / 2;
+	b.add(tiledPlane(halfWidth * 2, depth, 1.2), m.carpet, { position: [0, 0, midZ], rotation: [-Math.PI / 2, 0, 0], walkable: true });
+	b.add(tiledPlane(halfWidth * 2, depth, 1.2), m.ceiling, { position: [0, height, midZ], rotation: [Math.PI / 2, 0, 0] });
+	for (const side of [-1, 1]) {
+		b.add(new THREE.PlaneGeometry(depth, height), m.wall, { position: [side * halfWidth, height / 2, midZ], rotation: [0, -side * Math.PI / 2, 0] });
 	}
-	const merged = new THREE.BufferGeometry();
-	merged.setAttribute('position', new THREE.BufferAttribute(position, 3));
-	merged.setAttribute('normal', new THREE.BufferAttribute(normal, 3));
-	return merged;
+	b.add(new THREE.PlaneGeometry(halfWidth * 2, height), m.wall, { position: [0, height / 2, front] });
+	b.add(new THREE.PlaneGeometry(halfWidth * 2, height), m.wall, { position: [0, height / 2, back], rotation: [0, Math.PI, 0] });
+
+	// Ceiling: a cove light along each side, and rows of downlights.
+	for (const side of [-1, 1]) {
+		b.add(box(0.06, 0.05, depth - 1), m.cove, { position: [side * (halfWidth - 0.35), height - 0.8, midZ] });
+		b.add(box(0.3, 0.12, depth - 1), m.trim, { position: [side * (halfWidth - 0.2), height - 0.86, midZ] });
+	}
+	for (const x of [-6, -2, 2, 6]) {
+		for (let z = front + 4; z < back - 1; z += 4) {
+			b.add(new THREE.CircleGeometry(0.14, 20), m.downlight, { position: [x, height - 0.01, z], rotation: [Math.PI / 2, 0, 0] });
+		}
+	}
+
+	// Stage under the screen, with a lit edge.
+	const stageDepth = STAGE.front - front;
+	b.add(tiledBox(halfWidth * 2, STAGE.top, stageDepth, 1.5), m.wood, { position: [0, STAGE.top / 2, front + stageDepth / 2], walkable: true });
+	b.add(box(halfWidth * 2, 0.025, 0.025), m.stageLight, { position: [0, STAGE.top - 0.02, STAGE.front + 0.01] });
+}
+
+/** Stadium tiers (with half-steps and step lights in the aisles) and the back walkway. */
+function buildSeating(b, m) {
+	for (let row = 1; row < ROWS; row++) {
+		const h = rowFloor(row);
+		const zFront = rowZ(row) - ROW_PITCH / 2;
+		for (const seg of SEGMENTS) {
+			const width = seg.to - seg.from;
+			const x = (seg.from + seg.to) / 2;
+			if (!seg.aisle) {
+				b.add(tiledBox(width, h, ROW_PITCH, 1.2), m.carpet, { position: [x, h / 2, rowZ(row)], walkable: true });
+				// Dark nosing on the tier edge.
+				b.add(box(width, 0.03, 0.04), m.trim, { position: [x, h - 0.015, zFront + 0.02] });
+				continue;
+			}
+			// Aisle: a half-step in the front half of each tier.
+			const half = ROW_PITCH / 2;
+			const low = h - RISE / 2;
+			b.add(tiledBox(width, low, half, 1.2), m.carpet, { position: [x, low / 2, zFront + half / 2], walkable: true });
+			b.add(tiledBox(width, h, half, 1.2), m.carpet, { position: [x, h / 2, zFront + half * 1.5], walkable: true });
+			for (const [y, z] of [[low, zFront], [h, zFront + half]]) {
+				b.add(box(width - 0.2, 0.025, 0.025), m.stepLight, { position: [x, y - 0.03, z + 0.005] });
+			}
+		}
+	}
+	// Back walkway behind the last row.
+	const lastBack = rowZ(ROWS - 1) + ROW_PITCH / 2;
+	const depth = ROOM.back - lastBack;
+	const h = rowFloor(ROWS - 1);
+	b.add(tiledBox(ROOM.halfWidth * 2, h, depth, 1.2), m.carpet, { position: [0, h / 2, lastBack + depth / 2], walkable: true });
+}
+
+/** Acoustic bays, pilasters, sconces, surround speakers and exit doors on the side walls. */
+function buildWalls(b, m) {
+	const { halfWidth } = ROOM;
+	const bayWidth = 3.2;
+	const firstBay = -11.6;
+	for (const side of [-1, 1]) {
+		const wallX = side * halfWidth;
+		const inward = -side;
+		for (let i = 0, z = firstBay; z + bayWidth <= ROOM.back - 0.4; i++, z += bayWidth) {
+			const center = z + bayWidth / 2;
+			// Acoustic fabric panel and the pilaster that starts the bay.
+			b.add(box(0.06, 7.6, bayWidth - 0.4), m.acoustic, { position: [wallX + inward * 0.03, 5.3, center] });
+			b.add(box(0.22, ROOM.height, 0.34), m.dark, { position: [wallX + inward * 0.11, ROOM.height / 2, z] });
+			// Sconce washing the wall upwards, with its halo.
+			b.add(box(0.1, 0.32, 0.26), m.sconce, { position: [wallX + inward * 0.12, 6.4, center] });
+			b.add(box(0.14, 0.08, 0.32), m.trim, { position: [wallX + inward * 0.12, 6.22, center] });
+			b.add(new THREE.PlaneGeometry(1.5, 2.6), m.sconceGlow, { position: [wallX + inward * 0.08, 7.1, center], rotation: [0, inward * Math.PI / 2, 0] });
+			// Surround speaker in every other bay.
+			if (i % 2 === 1) b.add(box(0.26, 0.62, 0.46), m.speaker, { position: [wallX + inward * 0.16, 8.6, center] });
+		}
+		// Last pilaster at the back.
+		b.add(box(0.22, ROOM.height, 0.34), m.dark, { position: [wallX + inward * 0.11, ROOM.height / 2, ROOM.back - 0.4] });
+
+		// Exit door near the front, with its lit sign.
+		const doorZ = -9.6;
+		b.add(box(0.12, 2.6, 1.9), m.trim, { position: [wallX + inward * 0.06, 1.3, doorZ] });
+		b.add(tiledBox(0.06, 2.4, 1.6, 1), m.wood, { position: [wallX + inward * 0.13, 1.2, doorZ] });
+		b.add(new THREE.PlaneGeometry(0.62, 0.24), m.exit, { position: [wallX + inward * 0.17, 2.95, doorZ], rotation: [0, inward * Math.PI / 2, 0] });
+		b.add(new THREE.PlaneGeometry(1.4, 0.8), m.exitGlow, { position: [wallX + inward * 0.15, 2.95, doorZ], rotation: [0, inward * Math.PI / 2, 0] });
+	}
+}
+
+/** Masking, proscenium frame and curtains around the screen. */
+function buildScreenWall(b, m) {
+	const { halfWidth, front, height } = ROOM;
+	// Black masking behind the screen.
+	b.add(new THREE.PlaneGeometry(SCREEN.maxWidth + 1.4, SCREEN.maxHeight + 1.6), m.black, { position: [SCREEN.x, SCREEN.y, SCREEN.z - 0.08] });
+	// Proscenium: two pillars and a header.
+	const frameX = SCREEN.maxWidth / 2 + 0.95;
+	const frameTop = SCREEN.y + SCREEN.maxHeight / 2 + 1.1;
+	for (const side of [-1, 1]) {
+		const h = frameTop - STAGE.top;
+		b.add(box(0.5, h, 0.5), m.dark, { position: [side * frameX, STAGE.top + h / 2, SCREEN.z + 0.1] });
+	}
+	b.add(box(frameX * 2 + 0.5, 0.6, 0.5), m.dark, { position: [0, frameTop + 0.3, SCREEN.z + 0.1] });
+
+	// Side curtains (folded) from the proscenium to the walls, and a valance.
+	const curtainWidth = halfWidth - frameX - 0.2;
+	for (const side of [-1, 1]) {
+		const x = side * (frameX + 0.2 + curtainWidth / 2);
+		b.add(foldedCurtain(curtainWidth, height - STAGE.top, { folds: 7, depth: 0.14 }), m.velvet, { position: [x, STAGE.top + (height - STAGE.top) / 2, front + 0.35] });
+	}
+	b.add(foldedCurtain(halfWidth * 2, 1.1, { folds: 34, depth: 0.07 }), m.velvet, { position: [0, height - 0.55, SCREEN.z + 0.45] });
+}
+
+/** Projection booth windows on the back wall. */
+function buildBackWall(b, m) {
+	const y = 7.8;
+	for (const [x, w, h] of [[0, 1.8, 0.9], [-3.4, 1, 0.6], [3.4, 1, 0.6]]) {
+		// Lit glass, in a frame made of four bars around it.
+		b.add(new THREE.PlaneGeometry(w, h), m.booth, { position: [x, y, ROOM.back - 0.02], rotation: [0, Math.PI, 0] });
+		const t = 0.08;
+		for (const [bw, bh, bx, by] of [[w + 2 * t, t, 0, (h + t) / 2], [w + 2 * t, t, 0, -(h + t) / 2], [t, h, (w + t) / 2, 0], [t, h, -(w + t) / 2, 0]]) {
+			b.add(box(bw, bh, 0.08), m.trim, { position: [x + bx, y + by, ROOM.back - 0.04] });
+		}
+	}
+}
+
+/**
+ * The projector beam, from the booth to the screen: faint, takes the picture's
+ * color during the film, and fades out well before the screen (so it never
+ * veils the picture).
+ */
+function projectorBeam(lighting) {
+	const from = new THREE.Vector3(0, 7.8, ROOM.back - 0.1);
+	const to = new THREE.Vector3(SCREEN.x, SCREEN.y, SCREEN.z);
+	const length = from.distanceTo(to);
+	// Open cone along y: v = 1 at the narrow (booth) end, 0 at the screen end.
+	const geometry = new THREE.CylinderGeometry(0.15, 1, length, 24, 1, true);
+	const material = new THREE.ShaderMaterial({
+		uniforms: { color: { value: new THREE.Color() }, intensity: { value: 0 } },
+		vertexShader: `
+			varying float vAlong;
+			void main() {
+				vAlong = uv.y;
+				gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+			}`,
+		fragmentShader: `
+			uniform vec3 color;
+			uniform float intensity;
+			varying float vAlong;
+			void main() {
+				// A soft glow coming out of the booth, fading out over the back rows
+				// (not a veil over the audience, never over the picture).
+				float fade = smoothstep(0.72, 0.93, vAlong) * (1.0 - smoothstep(0.97, 1.0, vAlong));
+				gl_FragColor = vec4(color * intensity * fade, 1.0);
+			}`,
+		transparent: true,
+		depthWrite: false,
+		blending: THREE.AdditiveBlending,
+		side: THREE.DoubleSide,
+	});
+	const beam = new THREE.Mesh(geometry, material);
+	// The wide end takes the picture's shape.
+	beam.scale.set(SCREEN.maxWidth / 2, 1, SCREEN.maxHeight / 2);
+	beam.position.copy(from).add(to).multiplyScalar(0.5);
+	// Cone axis (+y, booth end) points from the screen to the booth.
+	beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), from.clone().sub(to).normalize());
+	beam.visible = false;
+
+	lighting.onScreen(({ color, brightness, playing }) => {
+		beam.visible = playing && brightness > 0;
+		material.uniforms.color.value.copy(color);
+		material.uniforms.intensity.value = 0.03 + 0.08 * brightness;
+	});
+	return beam;
 }
