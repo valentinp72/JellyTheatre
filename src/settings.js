@@ -87,6 +87,17 @@ export const SETTING_DEFINITIONS = [
 		action: 'Go back',
 	},
 	{
+		name: 'heightOffset',
+		type: 'range',
+		default: 0,
+		min: -0.5,
+		max: 0.5,
+		step: 0.05,
+		format: (value) => `${value > 0 ? '+' : ''}${Math.round(value * 100)} cm`,
+		label: 'Eye height',
+		description: 'Raise or lower your view, if you feel too low or too high in your seat.',
+	},
+	{
 		name: 'resetScreen',
 		type: 'action',
 		label: 'Screen position (My room)',

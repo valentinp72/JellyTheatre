@@ -12,6 +12,7 @@
 // Everything moves the camera rig; emits `rig-moved` on the scene afterwards.
 
 import * as THREE from 'three';
+import { getSetting } from '../settings.js';
 
 const SNAP_ANGLE = THREE.MathUtils.degToRad(30);
 const STICK_ON = 0.6;
@@ -53,6 +54,16 @@ AFRAME.registerComponent('view-controls', {
 			hand.addEventListener('thumbstickmoved', (event) => this.onStick(hand, event.detail));
 		}
 		this.data.left.addEventListener('thumbstickdown', () => this.backToSeat());
+
+		// "Eye height" setting: shift the view up or down right away.
+		this.heightOffset = getSetting('heightOffset');
+		this.onSettingChange = ({ detail }) => {
+			if (detail.name !== 'heightOffset') return;
+			this.data.rig.object3D.position.y += detail.value - this.heightOffset;
+			this.heightOffset = detail.value;
+			this.emitMoved();
+		};
+		window.addEventListener('settingchange', this.onSettingChange);
 
 		// The headset's recenter (Meta button) resets the reference space: then
 		// apply our own recenter, so the screen ends up in front of the user.
@@ -189,7 +200,7 @@ AFRAME.registerComponent('view-controls', {
 			const head = this.headPosition();
 			rig.position.x += point.x - head.x;
 			rig.position.z += point.z - head.z;
-			rig.position.y = point.y;
+			rig.position.y = point.y + getSetting('heightOffset');
 			this.emitMoved();
 		});
 	},
@@ -276,7 +287,7 @@ AFRAME.registerComponent('view-controls', {
 		const rig = this.data.rig.object3D;
 		const seat = this.data.seat;
 		rig.quaternion.identity();
-		rig.position.set(seat.x, seat.y, seat.z);
+		rig.position.set(seat.x, seat.y + getSetting('heightOffset'), seat.z);
 		this.emitMoved();
 		this.recenter();
 		// The head may not be above the rig origin (the user leaned or stands
@@ -293,6 +304,7 @@ AFRAME.registerComponent('view-controls', {
 	},
 
 	remove() {
+		window.removeEventListener('settingchange', this.onSettingChange);
 		this.el.sceneEl.object3D.remove(this.arc, this.marker);
 		this.data.camera.object3D.remove(this.fader);
 	},

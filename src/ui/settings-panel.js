@@ -38,8 +38,28 @@ AFRAME.registerComponent('settings-panel', {
 				position: `${x} ${y - 0.038} 0.002`,
 				'ui-text': { value: setting.description, fontSize: 0.02, color: COLORS.muted, anchorX: 'left', anchorY: 'top', maxWidth: textWidth, lineHeight: 1.3 },
 			});
+			const position = `${x + columnW - valueW / 2} ${y - 0.035} 0.002`;
+			if (setting.type === 'range') {
+				// [−] value [+]
+				const stepW = 0.055;
+				const value = entity({ position });
+				const text = entity({ 'ui-text': { fontSize: 0.024, align: 'center' } });
+				const step = (direction) => {
+					const next = getSetting(setting.name) + direction * setting.step;
+					const clamped = Math.min(setting.max, Math.max(setting.min, next));
+					// Rounded to avoid floating point noise (0.15000000000000002).
+					setSetting(setting.name, Number((Math.round(clamped / setting.step) * setting.step).toFixed(4)));
+				};
+				const minus = entity({ position: `${-valueW / 2 + stepW / 2} 0 0`, 'ui-button': { label: '−', width: stepW, height: 0.062, fontSize: 0.03 } });
+				const plus = entity({ position: `${valueW / 2 - stepW / 2} 0 0`, 'ui-button': { label: '+', width: stepW, height: 0.062, fontSize: 0.03 } });
+				minus.addEventListener('click', () => step(-1));
+				plus.addEventListener('click', () => step(1));
+				value.append(minus, text, plus);
+				this.el.append(label, description, value);
+				return { setting, value, text };
+			}
 			const value = entity({
-				position: `${x + columnW - valueW / 2} ${y - 0.035} 0.002`,
+				position,
 				'ui-button': { label: setting.action ?? '', width: valueW, height: 0.062, fontSize: 0.024 },
 			});
 			value.addEventListener('click', () => {
@@ -73,8 +93,12 @@ AFRAME.registerComponent('settings-panel', {
 	},
 
 	render() {
-		for (const { setting, value } of this.rows) {
+		for (const { setting, value, text } of this.rows) {
 			if (setting.type === 'action') continue;
+			if (setting.type === 'range') {
+				text.setAttribute('ui-text', 'value', setting.format(getSetting(setting.name)));
+				continue;
+			}
 			if (setting.type === 'choice') {
 				const current = setting.options.find((option) => option.value === getSetting(setting.name));
 				value.setAttribute('ui-button', { label: current?.label ?? '', active: false });
