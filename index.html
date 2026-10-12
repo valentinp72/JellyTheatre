@@ -83,16 +83,21 @@
 				renderer="antialias: true; highRefreshRate: true; colorManagement: true"
 				xr-mode-ui="enabled: false"
 				loading-screen="dotsColor: #aa5cc3; backgroundColor: #0b0710"
-				background="color: #0b0710">
+				background="color: #000000"
+				player-input>
 
-				<a-entity id="rig" position="0 0 0">
-					<a-entity id="camera" camera position="0 1.6 0" look-controls wasd-controls="enabled: false"></a-entity>
-					<a-entity id="left-hand" laser-controls="hand: left" raycaster="objects: .clickable; far: 50" line="color: #aa5cc3; opacity: 0.6"></a-entity>
-					<a-entity id="right-hand" laser-controls="hand: right" raycaster="objects: .clickable; far: 50" line="color: #00a4dc; opacity: 0.6"></a-entity>
+				<a-entity id="environment"></a-entity>
+				<a-entity id="screen" video-screen></a-entity>
+
+				<a-entity id="rig">
+					<a-entity id="camera" camera position="0 1.2 0" look-controls="pointerLockEnabled: false" wasd-controls="enabled: false"></a-entity>
+					<a-entity id="left-hand" laser-controls="hand: left" raycaster="objects: .clickable; far: 30" line="color: #aa5cc3; opacity: 0.6"></a-entity>
+					<a-entity id="right-hand" laser-controls="hand: right" raycaster="objects: .clickable; far: 30" line="color: #00a4dc; opacity: 0.6"></a-entity>
+					<!-- UI, positioned relative to the seat (rig is at the seat's floor). -->
+					<a-entity id="library-panel" library-panel position="0 1.28 -2" rotation="-4 0 0"></a-entity>
+					<a-entity id="player-controls" player-controls position="0 0.78 -0.6" rotation="-35 0 0"></a-entity>
 				</a-entity>
-				<a-entity cursor="rayOrigin: mouse; fuse: false" raycaster="objects: .clickable; far: 50"></a-entity>
-
-				<a-entity id="environment" placeholder-room></a-entity>
+				<a-entity cursor="rayOrigin: mouse; fuse: false" raycaster="objects: .clickable; far: 30"></a-entity>
 			</a-scene>
 		</template>
 	</body>

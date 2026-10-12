@@ -40,7 +40,7 @@ export default defineConfig(({ mode }) => ({
 			workbox: {
 				// A-Frame makes the main chunk large.
 				maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-				globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+				globPatterns: ['**/*.{js,css,html,svg,png,woff,woff2}'],
 				// Jellyfin API and media are cross-origin and never cached.
 				runtimeCaching: [],
 			},

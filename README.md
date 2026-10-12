@@ -105,7 +105,7 @@ index.html            Single page: 2D lobby overlay + A-Frame scene
 src/
   main.js             Entry point, wires lobby, scene and app state
   jellyfin/           API client, auth (Quick Connect), playback, reporting, remote
-  player/             Video source (direct / HLS), screen component
+  player/             Player (direct / HLS), screen component, controller input
   ui/                 In-VR UI components (panels, buttons, poster grid, seek bar)
   environments/       Environment registry + environments (theater, …)
   lobby/              2D (non-VR) lobby: server, login, enter VR
@@ -119,12 +119,20 @@ public/               Static assets (icons…)
       scene running on the Quest.
 - [x] **2. Auth & lobby**: server URL, Quick Connect + password login, session
       persisted in `localStorage`, usable without a headset.
-- [ ] **3. Theatre & player**: theatre environment, PlaybackInfo with runtime
-      device profile → direct play / HLS → video texture, controls (play/pause,
-      seek, ±10 s on thumbstick, volume, audio track), text subtitles rendered in
-      the scene.
-- [ ] **4. Library sync**: Continue Watching / Next Up shelves, library browsing,
-      resume, progress reporting, mark played, auto-play next episode.
+- [x] **3. Theatre & player**: procedural theatre (instanced seats, dimming
+      house lights), "Now showing" panel (Continue watching / Next up / Recently
+      added), PlaybackInfo with a runtime device profile → direct play or HLS
+      remux → video texture, controls (play/pause, seek bar, −10 s / +30 s,
+      volume, audio and subtitle menus, playback mode badge), text subtitles
+      rendered on the screen, progress reporting (start / progress / stopped).
+- [ ] **4. Library browsing**
+  - [x] Tabs: Continue watching, Next up, New movies, New shows, Movies and
+        Shows (whole collection, sortable, paged), Search (on-screen keyboard
+        or physical keyboard).
+  - [x] Details view (Resume / Play from start), series view (seasons,
+        episodes with watched status, play next).
+  - [ ] Mark played / unplayed, favourites, genre filters.
+  - [ ] Auto-play the next episode, media versions picker.
 - [ ] **5. Cast target**: control JellyTheatre from the official Jellyfin apps.
 - [ ] **6. Polish**: WebXR media layers (sharper video), screen-reactive ambient
       light, seat selection & recentre, client-side PGS subtitles, more

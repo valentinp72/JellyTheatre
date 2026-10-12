@@ -42,8 +42,15 @@ checkboxes up to date when a step is finished.
 
 ## Conventions
 
-- In-VR interactive entities get the `clickable` class; controller raycasters
-  target `.clickable`.
+- In-VR interactive entities carry `data-interactive`; `setInteractiveVisible()`
+  (src/ui/widgets.js) toggles their `clickable` class, which the raycasters
+  target, so hidden UI can't be clicked. Create UI entities with `entity()`.
+- In-VR text uses the `ui-text` component (troika, bundled Inter font), never
+  A-Frame's `text`.
+- A-Frame components initialize asynchronously: use `whenLoaded()` before
+  calling methods on a freshly created entity's components.
+- The playback mode badge (Direct play / Remux / Transcoding) must stay
+  accurate: it is how transcoding regressions get noticed.
 - Environments live in `src/environments/<name>/` and must expose a screen
   anchor (position, rotation, size) and a default viewer position, so the
   player is environment-agnostic.
