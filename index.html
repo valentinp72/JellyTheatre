@@ -65,6 +65,7 @@
 					<p>Signed in as <strong data-bind="userName"></strong> on <strong data-bind="serverName"></strong>.</p>
 					<button type="button" class="primary big" data-action="enter">Enter the theatre</button>
 					<p id="xr-hint" class="muted small"></p>
+					<p class="muted small">In the theatre, press the trigger while pointing at the screen (or B / Y) to show the controls.</p>
 					<button type="button" class="link" data-action="logout">Sign out</button>
 				</section>
 
@@ -82,6 +83,7 @@
 			<a-scene
 				renderer="antialias: true; highRefreshRate: true; colorManagement: true"
 				xr-mode-ui="enabled: false"
+				webxr="optionalFeatures: bounded-floor, layers"
 				loading-screen="dotsColor: #aa5cc3; backgroundColor: #0b0710"
 				background="color: #000000"
 				player-input>
@@ -96,6 +98,7 @@
 					<!-- UI, positioned relative to the seat (rig is at the seat's floor). -->
 					<a-entity id="library-panel" library-panel position="0 1.28 -2" rotation="-4 0 0"></a-entity>
 					<a-entity id="player-controls" player-controls position="0 0.78 -0.6" rotation="-35 0 0"></a-entity>
+					<a-entity id="up-next" up-next position="0 1.05 -1.25" rotation="-10 0 0"></a-entity>
 				</a-entity>
 				<a-entity cursor="rayOrigin: mouse; fuse: false" raycaster="objects: .clickable; far: 30"></a-entity>
 			</a-scene>

@@ -10,6 +10,7 @@ const PROGRESS_INTERVAL_MS = 10_000;
  * - `timeupdate`: position changed
  * - `subtitle`: { detail: { text } } the subtitle line to display ('' to clear)
  * - `ended`: the item finished
+ * - `outro`: the end credits started (needs media segments on the server)
  * - `error`: { detail: { error } }
  */
 export class Player extends EventTarget {
@@ -32,6 +33,9 @@ export class Player extends EventTarget {
 		this.subtitleIndex = -1;
 		this.subtitleTrack = null;
 		this.loading = false;
+		this.outroStart = null;
+		this.outroReached = false;
+		this.sources = null;
 
 		const v = this.video;
 		v.addEventListener('play', () => this.report('Unpause'));
@@ -40,7 +44,13 @@ export class Player extends EventTarget {
 		});
 		v.addEventListener('seeked', () => this.report('TimeUpdate'));
 		v.addEventListener('volumechange', () => this.report('VolumeChange'));
-		v.addEventListener('timeupdate', () => this.emit('timeupdate'));
+		v.addEventListener('timeupdate', () => {
+			this.emit('timeupdate');
+			if (this.outroStart !== null && !this.outroReached && v.currentTime >= this.outroStart) {
+				this.outroReached = true;
+				this.emit('outro', { item: this.item });
+			}
+		});
 		v.addEventListener('ended', () => this.onEnded());
 		v.addEventListener('error', () => {
 			// Errors while loading are handled by load(); this catches later failures.
@@ -53,9 +63,11 @@ export class Player extends EventTarget {
 		window.addEventListener('pagehide', () => this.reporter?.stopOnUnload(this.state()));
 	}
 
-	setSession(api, userId) {
+	/** @param {ReturnType<import('../jellyfin/library.js').createSources>} sources */
+	setSession(api, userId, sources) {
 		this.api = api;
 		this.userId = userId;
+		this.sources = sources;
 	}
 
 	emit(type, detail) {
@@ -86,14 +98,17 @@ export class Player extends EventTarget {
 	 * @param {object} [options]
 	 * @param {number} [options.startPosition] seconds; defaults to the saved resume point
 	 * @param {number} [options.audioStreamIndex]
+	 * @param {number} [options.subtitleIndex]
+	 * @param {string} [options.mediaSourceId] version to play
 	 */
-	async play(item, { startPosition, audioStreamIndex, subtitleIndex } = {}) {
+	async play(item, { startPosition, audioStreamIndex, subtitleIndex, mediaSourceId } = {}) {
 		this.loading = true;
 		await this.stop();
 		this.item = item;
 		this.emit('statechange');
 		try {
-			let source = await resolvePlayback(this.api, { item, userId: this.userId, audioStreamIndex });
+			const outroStart = this.sources?.outroStart(item.Id) ?? Promise.resolve(null);
+			let source = await resolvePlayback(this.api, { item, userId: this.userId, audioStreamIndex, mediaSourceId });
 			if (this.item !== item) return; // Another play() started meanwhile.
 			const start = startPosition ?? (item.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND;
 			try {
@@ -105,7 +120,7 @@ export class Player extends EventTarget {
 				console.warn('[player] direct play failed, retrying as remux', error);
 				this.hls?.destroy();
 				this.hls = null;
-				source = await resolvePlayback(this.api, { item, userId: this.userId, audioStreamIndex, allowDirectPlay: false });
+				source = await resolvePlayback(this.api, { item, userId: this.userId, audioStreamIndex, mediaSourceId, allowDirectPlay: false });
 				if (this.item !== item) return;
 				await this.load(source, start);
 			}
@@ -115,6 +130,12 @@ export class Player extends EventTarget {
 			await this.reporter.start(this.state());
 			await this.video.play().catch((error) => console.warn('[player] autoplay blocked', error));
 			this.progressTimer = setInterval(() => this.report('TimeUpdate'), PROGRESS_INTERVAL_MS);
+			const outro = await outroStart;
+			if (this.item === item) {
+				this.outroStart = outro;
+				// Resuming inside the credits must not trigger the prompt right away.
+				this.outroReached = outro !== null && start >= outro;
+			}
 			console.info(`[player] ${source.mode}`, source.transcodeReasons.join(', ') || '', source.url);
 		} catch (error) {
 			this.fail(error);
@@ -205,6 +226,7 @@ export class Player extends EventTarget {
 			startPosition: this.video.currentTime,
 			audioStreamIndex: index,
 			subtitleIndex: this.subtitleIndex,
+			mediaSourceId: this.source?.mediaSource.Id,
 		});
 	}
 
@@ -255,6 +277,8 @@ export class Player extends EventTarget {
 		this.reporter = null;
 		this.item = null;
 		this.source = null;
+		this.outroStart = null;
+		this.outroReached = false;
 		this.subtitleTrack?.remove();
 		this.subtitleTrack = null;
 		this.subtitleIndex = -1;

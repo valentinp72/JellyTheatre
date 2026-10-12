@@ -125,16 +125,23 @@ public/               Static assets (icons…)
       remux → video texture, controls (play/pause, seek bar, −10 s / +30 s,
       volume, audio and subtitle menus, playback mode badge), text subtitles
       rendered on the screen, progress reporting (start / progress / stopped).
-- [ ] **4. Library browsing**
+- [x] **4. Library browsing**
   - [x] Tabs: Continue watching, Next up, New movies, New shows, Movies and
         Shows (whole collection, sortable, paged), Search (on-screen keyboard
         or physical keyboard).
   - [x] Details view (Resume / Play from start), series view (seasons,
         episodes with watched status, play next).
-  - [ ] Mark played / unplayed, favourites, genre filters.
-  - [ ] Auto-play the next episode, media versions picker.
+  - [x] Mark watched / unwatched, favourites (+ Favourites tab), genre and
+        unwatched filters.
+  - [x] "Up next" prompt when the credits start (needs media segments on the
+        server) or at the end: 10 s auto-play countdown, one-click Cancel or
+        "Turn off auto-play". Media versions picker.
+  - [x] In-VR settings page (Settings button in the library panel header).
+  - [x] Season tabs with short labels (S01, Specials) that scroll with ‹ ›.
 - [ ] **5. Cast target**: control JellyTheatre from the official Jellyfin apps.
-- [ ] **6. Polish**: WebXR media layers (sharper video), screen-reactive ambient
+- [x] **WebXR media layer**: in VR on Quest, the video is a compositor layer
+      behind the scene (much sharper), with a texture fallback elsewhere.
+- [ ] **6. Polish**: screen-reactive ambient
       light, seat selection & recentre, client-side PGS subtitles, more
       environments including passthrough mode.
 

@@ -1,12 +1,14 @@
 // Library browser shown when nothing is playing.
 //
 // Tabs: Continue watching, Next up, New movies, New shows, Movies, Shows
-// (whole collection, sortable), Search (on-screen + physical keyboard).
-// Clicking a card opens a details view (movie / episode) or a series view
-// (seasons and episodes). Emits `play-item` { item, startPosition } and
-// `refresh-request`.
+// (whole collection: sort, genre and unwatched filters), Favourites, Search
+// (on-screen + physical keyboard). Clicking a card opens a details view
+// (movie / episode) or a series view (seasons and episodes), where items can
+// be marked watched or favourite. Emits `play-item` { item, startPosition,
+// mediaSourceId } and `refresh-request`.
 
 import { createSources, episodeNumber, resumeSeconds, runtimeLabel, SORTS } from '../jellyfin/library.js';
+import { getSetting, setSetting, SETTING_DEFINITIONS } from '../settings.js';
 import { formatTime } from './player-controls.js';
 import { truncate } from './text.js';
 import { COLORS, entity, setInteractiveVisible, whenLoaded } from './widgets.js';
@@ -25,9 +27,14 @@ const CARD_H = 0.36;
 const CARD_GAP = 0.06;
 const ROW_PITCH = 0.47;
 
+const GENRE_COLS = 5;
+const GENRE_ROWS = 7;
+const GENRES_PER_PAGE = GENRE_COLS * GENRE_ROWS;
+
 const EPISODE_ROWS = 6;
 const EPISODES_PER_PAGE = EPISODE_ROWS * 2;
-const MAX_SEASON_TABS = 8;
+const SEASON_TAB_GAP = 0.012;
+const SEASON_ARROW_W = 0.07;
 
 const TABS = [
 	{ id: 'resume', label: 'Continue watching', empty: 'Nothing in progress.' },
@@ -36,6 +43,7 @@ const TABS = [
 	{ id: 'latestShows', label: 'New shows', empty: 'No episodes added recently.' },
 	{ id: 'movies', label: 'Movies', type: 'Movie', noun: ['movie', 'movies'], empty: 'No movies in your library.' },
 	{ id: 'shows', label: 'Shows', type: 'Series', noun: ['show', 'shows'], empty: 'No shows in your library.' },
+	{ id: 'favorites', label: 'Favourites', noun: ['favourite', 'favourites'], empty: 'No favourites yet: add some from a movie or show page.' },
 	{ id: 'search', label: 'Search', noun: ['result', 'results'], empty: 'No results.' },
 ];
 
@@ -51,6 +59,7 @@ AFRAME.registerComponent('library-panel', {
 		this.stack = [];
 		this.page = 0;
 		this.sortIndex = { movies: 0, shows: 0 };
+		this.filters = { movies: { genre: null, unwatched: false }, shows: { genre: null, unwatched: false } };
 		this.searchText = '';
 		this.loadToken = 0;
 		this.searchTimer = null;
@@ -58,6 +67,10 @@ AFRAME.registerComponent('library-panel', {
 		this.el.append(entity({ 'ui-rect': `width: ${WIDTH}; height: ${HEIGHT}; radius: 0.04; opacity: 0.95` }));
 		this.heading = entity({ position: `${LEFT} ${TOP - 0.065} 0.002`, 'ui-text': 'value: Now showing; fontSize: 0.05; weight: bold; anchorX: left' });
 		this.refreshButton = this.button({ label: 'Refresh', width: 0.18 }, RIGHT - 0.09, TOP - 0.065, () => this.el.emit('refresh-request'));
+		this.settingsButton = this.button({ label: 'Settings', width: 0.2 }, RIGHT - 0.18 - 0.02 - 0.1, TOP - 0.065, () => {
+			if (this.top()?.type !== 'settings') this.stack.push({ type: 'settings' });
+			this.render();
+		});
 		this.message = entity({ position: '0 0 0.002', 'ui-text': `fontSize: 0.036; maxWidth: ${WIDTH - 0.4}; align: center; color: ${COLORS.muted}` });
 		this.notice = entity({ position: `0 ${-TOP - 0.06} 0.002`, 'ui-text': `fontSize: 0.032; maxWidth: ${WIDTH}; align: center; color: #ff6b7a` });
 		this.el.append(this.heading, this.refreshButton, this.message, this.notice);
@@ -66,6 +79,12 @@ AFRAME.registerComponent('library-panel', {
 		this.buildGrid();
 		this.buildDetail();
 		this.buildSeries();
+		this.buildGenres();
+		this.buildSettings();
+		this.onSettingChange = () => {
+			if (this.top()?.type === 'settings') this.render();
+		};
+		window.addEventListener('settingchange', this.onSettingChange);
 
 		// At lap height, in front of the seat ahead (which would hide it further away).
 		this.keyboard = entity({ 'ui-keyboard': '', position: '0 -0.5 1.45', rotation: '-40 0 0', scale: '0.85 0.85 0.85' });
@@ -79,6 +98,7 @@ AFRAME.registerComponent('library-panel', {
 
 	remove() {
 		window.removeEventListener('keydown', this.onKeyDown);
+		window.removeEventListener('settingchange', this.onSettingChange);
 	},
 
 	// --- building blocks ---------------------------------------------------
@@ -109,7 +129,7 @@ AFRAME.registerComponent('library-panel', {
 		for (const tab of TABS) {
 			const width = 0.06 + tab.label.length * 0.0165;
 			this.tabEls[tab.id] = this.button({ label: tab.label, width }, x + width / 2, TOP - 0.16, () => this.showTab(tab.id));
-			x += width + 0.022;
+			x += width + 0.018;
 		}
 	},
 
@@ -119,6 +139,16 @@ AFRAME.registerComponent('library-panel', {
 		const toolbarY = CONTENT_TOP - 0.03;
 		this.gridInfo = entity({ position: `${RIGHT} ${toolbarY} 0.002`, 'ui-text': `fontSize: 0.026; color: ${COLORS.muted}; anchorX: right` });
 		this.sortButton = this.button({ label: 'Sort', width: 0.34 }, LEFT + 0.17, toolbarY, () => this.cycleSort(), this.grid);
+		this.genreButton = this.button({ label: 'Genre: All', width: 0.36 }, LEFT + 0.36 + 0.18, toolbarY, () => {
+			this.stack.push({ type: 'genres', tab: this.tab, page: 0 });
+			this.render();
+		}, this.grid);
+		this.unwatchedButton = this.button({ label: 'Unwatched only', width: 0.28 }, LEFT + 0.74 + 0.14, toolbarY, () => {
+			const filters = this.filters[this.tab];
+			filters.unwatched = !filters.unwatched;
+			this.page = 0;
+			this.render();
+		}, this.grid);
 		this.searchField = entity({ position: `${LEFT + 0.5} ${toolbarY} 0.002`, 'ui-rect': `width: 1; height: 0.065; radius: 0.02; color: ${COLORS.button}` });
 		this.searchText3d = entity({ position: '-0.47 0 0.002', 'ui-text': 'fontSize: 0.03; anchorX: left' });
 		this.searchField.appendChild(this.searchText3d);
@@ -172,6 +202,15 @@ AFRAME.registerComponent('library-panel', {
 		this.detailRestart = this.button({ label: 'Play from start', width: 0.32 }, x + 0.42 + 0.03 + 0.16, y, () => this.playFromDetail(false), this.detail);
 		this.detailSeries = this.button({ label: 'Go to series', width: 0.26 }, x + 0.77 + 0.03 + 0.13, y, () => this.openSeriesOf(this.top().item), this.detail);
 		this.detailBack = this.button({ label: '‹ Back', width: 0.2 }, RIGHT - 0.1, y, () => this.back(), this.detail);
+
+		const y2 = y - 0.09;
+		this.detailPlayed = this.button({ label: 'Mark watched', width: 0.3 }, x + 0.15, y2, () => this.togglePlayed(this.top()), this.detail);
+		this.detailFavorite = this.button({ label: 'Add to favourites', width: 0.34 }, x + 0.3 + 0.03 + 0.17, y2, () => this.toggleFavorite(this.top()), this.detail);
+		this.detailVersion = this.button({ label: 'Version', width: 0.5 }, x + 0.67 + 0.03 + 0.25, y2, () => {
+			const view = this.top();
+			view.versionIndex = (view.versionIndex + 1) % view.item.MediaSources.length;
+			this.render();
+		}, this.detail);
 	},
 
 	buildSeries() {
@@ -196,6 +235,8 @@ AFRAME.registerComponent('library-panel', {
 			const next = this.top().nextUp;
 			if (next) this.el.emit('play-item', { item: next });
 		}, this.series);
+		this.seriesPlayed = this.button({ label: 'Mark watched', width: 0.3 }, x + 0.42 + 0.03 + 0.15, buttonsY, () => this.togglePlayed(this.top()), this.series);
+		this.seriesFavorite = this.button({ label: 'Add to favourites', width: 0.34 }, x + 0.75 + 0.03 + 0.17, buttonsY, () => this.toggleFavorite(this.top()), this.series);
 		this.seriesBack = this.button({ label: '‹ Back', width: 0.2 }, RIGHT - 0.1, buttonsY, () => this.back(), this.series);
 
 		this.seasonRow = entity({ position: `0 ${CONTENT_TOP - 0.39} 0` });
@@ -223,6 +264,104 @@ AFRAME.registerComponent('library-panel', {
 		this.episodeNext = this.button({ label: 'Next ›', width: 0.26 }, RIGHT - 0.13, pagerY, () => this.setEpisodePage(1), this.series);
 		this.episodePage = entity({ position: `${(x + RIGHT) / 2} ${pagerY} 0.002`, 'ui-text': `fontSize: 0.026; color: ${COLORS.muted}` });
 		this.series.appendChild(this.episodePage);
+	},
+
+	buildGenres() {
+		this.genres = entity();
+		this.el.appendChild(this.genres);
+		this.genresTitle = this.text({ fontSize: 0.04, weight: 'bold' }, LEFT, CONTENT_TOP + 0.01, this.genres);
+		this.genresAll = this.button({ label: 'All genres', width: 0.26 }, RIGHT - 0.2 - 0.03 - 0.13, CONTENT_TOP - 0.02, () => this.chooseGenre(null), this.genres);
+		this.genresBack = this.button({ label: '‹ Back', width: 0.2 }, RIGHT - 0.1, CONTENT_TOP - 0.02, () => this.back(), this.genres);
+		const width = (RIGHT - LEFT - (GENRE_COLS - 1) * 0.02) / GENRE_COLS;
+		this.genreEls = [];
+		for (let i = 0; i < GENRES_PER_PAGE; i++) {
+			const col = i % GENRE_COLS;
+			const row = Math.floor(i / GENRE_COLS);
+			const el = this.button(
+				{ label: '', width, height: 0.07, fontSize: 0.026 },
+				LEFT + width / 2 + col * (width + 0.02),
+				CONTENT_TOP - 0.13 - row * 0.085,
+				() => {
+					const view = this.top();
+					const genre = view.list?.[view.page * GENRES_PER_PAGE + i];
+					if (genre) this.chooseGenre(genre);
+				},
+				this.genres,
+			);
+			this.genreEls.push(el);
+		}
+		const pagerY = -TOP + 0.09;
+		this.genresPrev = this.button({ label: '‹ Previous', width: 0.26 }, -0.32, pagerY, () => this.setGenrePage(-1), this.genres);
+		this.genresNext = this.button({ label: 'Next ›', width: 0.26 }, 0.32, pagerY, () => this.setGenrePage(1), this.genres);
+	},
+
+	buildSettings() {
+		this.settings = entity();
+		this.el.appendChild(this.settings);
+		this.text({ value: 'Settings', fontSize: 0.05, weight: 'bold' }, LEFT, CONTENT_TOP + 0.01, this.settings);
+		this.button({ label: '‹ Back', width: 0.2 }, RIGHT - 0.1, CONTENT_TOP - 0.02, () => this.back(), this.settings);
+		const valueW = 0.2;
+		const textWidth = RIGHT - LEFT - valueW - 0.1;
+		this.settingRows = SETTING_DEFINITIONS.map((setting, i) => {
+			const y = CONTENT_TOP - 0.14 - i * 0.14;
+			this.text({ value: setting.label, fontSize: 0.034, maxWidth: textWidth }, LEFT, y, this.settings);
+			this.text({ value: setting.description, fontSize: 0.026, color: COLORS.muted, maxWidth: textWidth }, LEFT, y - 0.048, this.settings);
+			const value = this.button({ label: '', width: valueW, height: 0.07 }, RIGHT - valueW / 2, y - 0.035, () => {
+				setSetting(setting.name, !getSetting(setting.name));
+			}, this.settings);
+			return { setting, value };
+		});
+	},
+
+	renderSettings() {
+		for (const { setting, value } of this.settingRows) {
+			const on = getSetting(setting.name);
+			value.setAttribute('ui-button', { label: on ? 'On' : 'Off', active: on });
+		}
+	},
+
+	chooseGenre(genre) {
+		const view = this.top();
+		this.filters[view.tab].genre = genre;
+		this.page = 0;
+		this.back();
+	},
+
+	setGenrePage(delta) {
+		const view = this.top();
+		view.page = Math.max(0, view.page + delta);
+		this.render();
+	},
+
+	async renderGenres(view) {
+		const tab = TABS.find((t) => t.id === view.tab);
+		const current = this.filters[view.tab].genre;
+		this.genresTitle.setAttribute('ui-text', 'value', `${tab.label}: choose a genre`);
+		this.genresAll.setAttribute('ui-button', 'active', !current);
+		const token = ++this.loadToken;
+		if (!view.list) {
+			this.genreEls.forEach((el) => this.show(el, false));
+			this.show(this.genresPrev, false);
+			this.show(this.genresNext, false);
+			this.setMessage('Loading…');
+			try {
+				view.list = await this.sources.genres(tab.type);
+			} catch (error) {
+				console.error(error);
+				if (token === this.loadToken) this.setMessage('Could not load the genres.');
+				return;
+			}
+			if (token !== this.loadToken || this.top() !== view) return;
+			this.setMessage(view.list.length ? '' : 'No genres.');
+		}
+		const pageCount = pages(view.list.length, GENRES_PER_PAGE);
+		this.genreEls.forEach((el, i) => {
+			const genre = view.list[view.page * GENRES_PER_PAGE + i];
+			if (genre) el.setAttribute('ui-button', { label: truncate(genre.Name, 24), active: genre.Id === current?.Id });
+			this.show(el, Boolean(genre));
+		});
+		this.show(this.genresPrev, view.page > 0);
+		this.show(this.genresNext, view.page < pageCount - 1);
 	},
 
 	// --- public API --------------------------------------------------------
@@ -286,8 +425,19 @@ AFRAME.registerComponent('library-panel', {
 	},
 
 	open(item) {
-		if (item.Type === 'Series') this.stack.push({ type: 'series', item, seasonIndex: 0, episodePage: 0, episodeSources: {} });
-		else this.stack.push({ type: 'detail', item });
+		if (item.Type === 'Series') {
+			this.stack.push({ type: 'series', item, seasonIndex: 0, episodePage: 0, episodeSources: {} });
+		} else {
+			const view = { type: 'detail', item, versionIndex: 0 };
+			this.stack.push(view);
+			if (item.MediaSourceCount > 1 && !item.MediaSources) {
+				// Fetch the list of versions.
+				this.sources.item(item.Id).then((full) => {
+					if (full) view.item = full;
+					if (this.top() === view) this.render();
+				}).catch(() => {});
+			}
+		}
 		this.render();
 	},
 
@@ -331,8 +481,38 @@ AFRAME.registerComponent('library-panel', {
 	},
 
 	playFromDetail(resume) {
-		const { item } = this.top();
-		this.el.emit('play-item', { item, startPosition: resume ? undefined : 0 });
+		const { item, versionIndex } = this.top();
+		const mediaSourceId = item.MediaSources?.length > 1 ? item.MediaSources[versionIndex].Id : undefined;
+		this.el.emit('play-item', { item, startPosition: resume ? undefined : 0, mediaSourceId });
+	},
+
+	async togglePlayed(view) {
+		const { item } = view;
+		try {
+			const userData = await this.sources.setPlayed(item.Id, !item.UserData?.Played);
+			item.UserData = { ...item.UserData, ...userData };
+			// A series' episodes changed too.
+			if (view.type === 'series') {
+				view.seasons = null;
+				view.episodeSources = {};
+			}
+		} catch (error) {
+			console.error(error);
+			this.setNotice('Could not update the watched status.');
+		}
+		if (this.top() === view) this.render();
+	},
+
+	async toggleFavorite(view) {
+		const { item } = view;
+		try {
+			const userData = await this.sources.setFavorite(item.Id, !item.UserData?.IsFavorite);
+			item.UserData = { ...item.UserData, ...userData };
+		} catch (error) {
+			console.error(error);
+			this.setNotice('Could not update favourites.');
+		}
+		if (this.top() === view) this.render();
 	},
 
 	// --- search input ------------------------------------------------------
@@ -377,6 +557,7 @@ AFRAME.registerComponent('library-panel', {
 		const view = this.top();
 		const signedIn = this.sources !== null;
 		this.show(this.refreshButton, signedIn);
+		this.show(this.settingsButton, signedIn);
 		for (const tab of TABS) {
 			const el = this.tabEls[tab.id];
 			el.setAttribute('ui-button', 'active', tab.id === this.tab);
@@ -385,12 +566,16 @@ AFRAME.registerComponent('library-panel', {
 		this.show(this.grid, signedIn && !view);
 		this.show(this.detail, signedIn && view?.type === 'detail');
 		this.show(this.series, signedIn && view?.type === 'series');
+		this.show(this.genres, signedIn && view?.type === 'genres');
+		this.show(this.settings, signedIn && view?.type === 'settings');
 		this.keyboard.components['ui-keyboard']?.setVisible(this.searchActive() && signedIn);
 		this.setMessage(signedIn ? '' : 'Sign in from the lobby to see your library.');
 		if (!signedIn || !this.visible) return;
 
 		if (!view) this.renderGrid();
 		else if (view.type === 'detail') this.renderDetail(view);
+		else if (view.type === 'genres') this.renderGenres(view);
+		else if (view.type === 'settings') this.renderSettings();
 		else this.renderSeries(view);
 	},
 
@@ -399,7 +584,10 @@ AFRAME.registerComponent('library-panel', {
 	},
 
 	gridSource(tab) {
-		if (tab.id === 'movies' || tab.id === 'shows') return this.sources.collection(tab.type, SORTS[this.sortIndex[tab.id]]);
+		if (tab.id === 'movies' || tab.id === 'shows') {
+			const { genre, unwatched } = this.filters[tab.id];
+			return this.sources.collection(tab.type, SORTS[this.sortIndex[tab.id]], { genreId: genre?.Id, unwatched });
+		}
 		if (tab.id === 'search') return this.sources.search(this.searchText.trim());
 		return this.sources[tab.id];
 	},
@@ -409,8 +597,15 @@ AFRAME.registerComponent('library-panel', {
 		const sortable = tab.id === 'movies' || tab.id === 'shows';
 		const isSearch = tab.id === 'search';
 		this.show(this.sortButton, sortable);
+		this.show(this.genreButton, sortable);
+		this.show(this.unwatchedButton, sortable);
 		this.show(this.searchField, isSearch);
-		if (sortable) this.sortButton.setAttribute('ui-button', 'label', `Sort: ${SORTS[this.sortIndex[tab.id]].label}`);
+		if (sortable) {
+			const { genre, unwatched } = this.filters[tab.id];
+			this.sortButton.setAttribute('ui-button', 'label', `Sort: ${SORTS[this.sortIndex[tab.id]].label}`);
+			this.genreButton.setAttribute('ui-button', { label: `Genre: ${truncate(genre?.Name ?? 'All', 16)}`, active: Boolean(genre) });
+			this.unwatchedButton.setAttribute('ui-button', 'active', unwatched);
+		}
 		if (isSearch) this.renderSearchField();
 
 		const token = ++this.loadToken;
@@ -479,6 +674,18 @@ AFRAME.registerComponent('library-panel', {
 		this.show(this.detailSeries, isEpisode && Boolean(item.SeriesId));
 		// Without "Play from start", "Go to series" moves next to "Play".
 		this.detailSeries.object3D.position.x = this.detailX + (resume > 0 ? 0.93 : 0.58);
+
+		this.detailPlayed.setAttribute('ui-button', 'label', item.UserData?.Played ? 'Mark unwatched' : 'Mark watched');
+		this.detailFavorite.setAttribute('ui-button', {
+			label: item.UserData?.IsFavorite ? 'Remove favourite' : 'Add to favourites',
+			active: Boolean(item.UserData?.IsFavorite),
+		});
+		const versions = item.MediaSources ?? [];
+		this.show(this.detailVersion, versions.length > 1);
+		if (versions.length > 1) {
+			const name = versions[view.versionIndex]?.Name ?? `Version ${view.versionIndex + 1}`;
+			this.detailVersion.setAttribute('ui-button', 'label', `Version: ${truncate(name, 26)}`);
+		}
 	},
 
 	async renderSeries(view) {
@@ -487,6 +694,11 @@ AFRAME.registerComponent('library-panel', {
 		this.seriesTitle.setAttribute('ui-text', 'value', truncate(item.Name, 48));
 		this.seriesOverview.setAttribute('ui-text', 'value', truncate(item.Overview ?? '', 300));
 		this.show(this.seriesPlayNext, Boolean(view.nextUp));
+		this.seriesPlayed.setAttribute('ui-button', 'label', item.UserData?.Played ? 'Mark unwatched' : 'Mark watched');
+		this.seriesFavorite.setAttribute('ui-button', {
+			label: item.UserData?.IsFavorite ? 'Remove favourite' : 'Add to favourites',
+			active: Boolean(item.UserData?.IsFavorite),
+		});
 
 		const token = ++this.loadToken;
 		if (!view.seasons) {
@@ -553,13 +765,44 @@ AFRAME.registerComponent('library-panel', {
 		this.show(this.episodeNext, view.episodePage < pageCount - 1);
 	},
 
+	/** One tab per season; ‹ › scroll through them when they don't all fit. */
 	renderSeasonTabs(view) {
 		this.seasonRow.replaceChildren();
-		const width = 0.19;
-		view.seasons.slice(0, MAX_SEASON_TABS).forEach((season, index) => {
+		const labels = view.seasons.map(seasonLabel);
+		const widths = labels.map((label) => 0.05 + label.length * 0.017);
+		const available = RIGHT - this.seriesX;
+		const total = widths.reduce((sum, w) => sum + w + SEASON_TAB_GAP, -SEASON_TAB_GAP);
+		const scrolling = total > available;
+		const room = scrolling ? available - 2 * (SEASON_ARROW_W + SEASON_TAB_GAP) : available;
+
+		// Visible window: as many tabs as fit, starting at the scroll offset.
+		view.seasonOffset = Math.min(view.seasonOffset ?? 0, labels.length - 1);
+		const start = scrolling ? view.seasonOffset : 0;
+		let end = start;
+		for (let used = 0; end < labels.length; end++) {
+			used += widths[end] + (end > start ? SEASON_TAB_GAP : 0);
+			if (used > room) break;
+		}
+
+		let x = this.seriesX;
+		const tabOptions = { height: 0.06, fontSize: 0.024 };
+		if (scrolling) {
+			this.button({ ...tabOptions, label: '‹', width: SEASON_ARROW_W, disabled: start === 0 }, x + SEASON_ARROW_W / 2, 0, () => {
+				// Scroll back by a full window.
+				let offset = start;
+				for (let used = 0; offset > 0; offset--) {
+					used += widths[offset - 1] + SEASON_TAB_GAP;
+					if (used > room) break;
+				}
+				view.seasonOffset = offset;
+				this.render();
+			}, this.seasonRow);
+			x += SEASON_ARROW_W + SEASON_TAB_GAP;
+		}
+		for (let index = start; index < end; index++) {
 			this.button(
-				{ label: truncate(season.Name, 13), width, height: 0.06, fontSize: 0.024, active: index === view.seasonIndex },
-				this.seriesX + width / 2 + index * (width + 0.015),
+				{ ...tabOptions, label: labels[index], width: widths[index], active: index === view.seasonIndex },
+				x + widths[index] / 2,
 				0,
 				() => {
 					view.seasonIndex = index;
@@ -568,10 +811,24 @@ AFRAME.registerComponent('library-panel', {
 				},
 				this.seasonRow,
 			);
-		});
+			x += widths[index] + SEASON_TAB_GAP;
+		}
+		if (scrolling) {
+			this.button({ ...tabOptions, label: '›', width: SEASON_ARROW_W, disabled: end >= labels.length }, RIGHT - SEASON_ARROW_W / 2, 0, () => {
+				view.seasonOffset = end;
+				this.render();
+			}, this.seasonRow);
+		}
 		this.show(this.seasonRow, true);
 	},
 });
+
+/** Short season label: "S01", "S12", "Specials". */
+function seasonLabel(season) {
+	if (season.IndexNumber === 0) return 'Specials';
+	if (season.IndexNumber != null) return `S${String(season.IndexNumber).padStart(2, '0')}`;
+	return truncate(season.Name, 12);
+}
 
 function episodeLabel(episode) {
 	const number = episode.IndexNumber != null ? `${episode.IndexNumber}. ` : '';

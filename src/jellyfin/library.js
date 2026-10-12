@@ -1,5 +1,8 @@
+import { getGenreApi } from '@jellyfin/sdk/lib/utils/api/genre-api';
 import { getLibraryApi } from '@jellyfin/sdk/lib/utils/api/library-api';
+import { getMediaSegmentApi } from '@jellyfin/sdk/lib/utils/api/media-segment-api';
 import { getShowApi } from '@jellyfin/sdk/lib/utils/api/show-api';
+import { getUserDataApi } from '@jellyfin/sdk/lib/utils/api/user-data-api';
 import { TICKS_PER_SECOND } from './playback.js';
 
 const FIELDS = ['Overview', 'MediaSourceCount', 'PrimaryImageAspectRatio', 'Genres', 'ChildCount'];
@@ -56,8 +59,12 @@ export function createSources(api, userId) {
 		latestMovies: listSource(async () => (await library.getLatestMedia({ ...common, limit: LATEST_LIMIT, includeItemTypes: ['Movie'] })).data ?? []),
 		// Grouped: a show with several new episodes appears once, as the series.
 		latestShows: listSource(async () => (await library.getLatestMedia({ ...common, limit: LATEST_LIMIT, includeItemTypes: ['Episode'], groupItems: true })).data ?? []),
-		/** @param {'Movie' | 'Series'} type */
-		collection(type, sort) {
+		/**
+		 * @param {'Movie' | 'Series'} type
+		 * @param {{ sortBy: string[], sortOrder: string[] }} sort
+		 * @param {{ genreId?: string, unwatched?: boolean }} [filters]
+		 */
+		collection(type, sort, filters = {}) {
 			return {
 				load: (startIndex, limit) => library.getItems({
 					...common,
@@ -67,10 +74,26 @@ export function createSources(api, userId) {
 					recursive: true,
 					sortBy: sort.sortBy,
 					sortOrder: sort.sortOrder,
+					genreIds: filters.genreId ? [filters.genreId] : undefined,
+					isPlayed: filters.unwatched ? false : undefined,
 					enableTotalRecordCount: true,
 				}).then(page),
 			};
 		},
+		favorites: {
+			load: (startIndex, limit) => library.getItems({
+				...common,
+				startIndex,
+				limit,
+				includeItemTypes: ['Movie', 'Series', 'Episode'],
+				recursive: true,
+				isFavorite: true,
+				sortBy: ['SortName'],
+				enableTotalRecordCount: true,
+			}).then(page),
+		},
+		/** @param {'Movie' | 'Series'} type */
+		genres: async (type) => (await getGenreApi(api).getGenres({ userId, includeItemTypes: [type], sortBy: ['SortName'] })).data.Items ?? [],
 		search(term) {
 			return {
 				load: (startIndex, limit) => library.getItems({
@@ -88,8 +111,39 @@ export function createSources(api, userId) {
 		episodes(seriesId, seasonId) {
 			return listSource(async () => (await shows.getEpisodes({ ...common, seriesId, seasonId })).data.Items ?? []);
 		},
-		/** Fresh copy of an item (e.g. its resume point after watching). */
-		item: async (id) => (await library.getItems({ ...common, ids: [id] })).data.Items?.[0] ?? null,
+		/** Fresh copy of an item (e.g. its resume point after watching), with its media versions. */
+		item: async (id) => (await library.getItems({ ...common, fields: [...FIELDS, 'MediaSources'], ids: [id] })).data.Items?.[0] ?? null,
+		/** @returns {Promise<object>} the updated UserData */
+		setPlayed: async (itemId, played) => {
+			const userData = getUserDataApi(api);
+			const { data } = played
+				? await userData.markPlayedItem({ itemId, userId })
+				: await userData.markUnplayedItem({ itemId, userId });
+			return data;
+		},
+		setFavorite: async (itemId, favorite) => {
+			const userData = getUserDataApi(api);
+			const { data } = favorite
+				? await userData.markFavoriteItem({ itemId, userId })
+				: await userData.unmarkFavoriteItem({ itemId, userId });
+			return data;
+		},
+		/** Start of the end credits in seconds (needs media segments on the server), or null. */
+		outroStart: async (itemId) => {
+			try {
+				const { data } = await getMediaSegmentApi(api).getItemSegments({ itemId, includeSegmentTypes: ['Outro'] });
+				const outro = data.Items?.[0];
+				return outro ? outro.StartTicks / TICKS_PER_SECOND : null;
+			} catch {
+				return null;
+			}
+		},
+		/** The episode after `episode` in its series (across seasons), or null. */
+		nextEpisode: async (episode) => {
+			const { data } = await shows.getEpisodes({ ...common, seriesId: episode.SeriesId, startItemId: episode.Id, limit: 2 });
+			const [current, next] = data.Items ?? [];
+			return current?.Id === episode.Id ? (next ?? null) : null;
+		},
 		nextUpForSeries: async (seriesId) => (await shows.getNextUp({ ...common, seriesId, limit: 1 })).data.Items?.[0] ?? null,
 	};
 }

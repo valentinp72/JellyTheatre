@@ -6,13 +6,16 @@ import './ui/widgets.js';
 import './ui/keyboard.js';
 import './ui/poster.js';
 import './ui/library-panel.js';
+import './ui/up-next.js';
 import './ui/player-controls.js';
 import './player/video-screen.js';
 import './player/player-input.js';
 import './environments/theater/theater.js';
 import { DEFAULT_ENVIRONMENT, environments } from './environments/index.js';
+import { createSources } from './jellyfin/library.js';
 import { createLobby } from './lobby/lobby.js';
 import { Player } from './player/player.js';
+import { getSetting, setSetting } from './settings.js';
 
 registerSW({ immediate: true });
 
@@ -27,12 +30,15 @@ const screenEl = document.getElementById('screen');
 const rigEl = document.getElementById('rig');
 const libraryEl = document.getElementById('library-panel');
 const controlsEl = document.getElementById('player-controls');
+const upNextEl = document.getElementById('up-next');
 const backButton = document.getElementById('back-to-lobby');
 
 const player = new Player();
 let session = null;
 let vrSupported = false;
 let hideControlsTimer = null;
+// Episode whose "Up next" prompt was dismissed: don't offer again at its end.
+let upNextDismissedFor = null;
 
 const sceneReady = new Promise((resolve) => {
 	if (sceneEl.hasLoaded) resolve();
@@ -41,6 +47,7 @@ const sceneReady = new Promise((resolve) => {
 
 const library = () => libraryEl.components['library-panel'];
 const controls = () => controlsEl.components['player-controls'];
+const upNext = () => upNextEl.components['up-next'];
 const environment = () => environmentEl.components[environments[DEFAULT_ENVIRONMENT].component];
 
 function setupEnvironment(key) {
@@ -61,15 +68,17 @@ function showControls() {
 	}, CONTROLS_HIDE_DELAY_MS);
 }
 
-function startPlayback(item, startPosition) {
+function startPlayback(item, startPosition, mediaSourceId) {
+	upNext().close();
 	library().setNotice('');
 	library().setVisible(false);
 	environment().setHouseLights(false);
-	player.play(item, { startPosition });
+	player.play(item, { startPosition, mediaSourceId });
 	showControls();
 }
 
 function backToHome() {
+	upNext().close();
 	clearTimeout(hideControlsTimer);
 	controls().setVisible(false);
 	environment().setHouseLights(true);
@@ -80,8 +89,8 @@ function backToHome() {
 
 const lobby = createLobby({
 	async onSignedIn({ api, user }) {
-		session = { api, user };
-		player.setSession(api, user.Id);
+		session = { api, user, sources: createSources(api, user.Id) };
+		player.setSession(api, user.Id, session.sources);
 		await sceneReady;
 		library().setSession(api, user);
 	},
@@ -124,7 +133,7 @@ sceneReady.then(() => {
 	screenEl.components['video-screen'].bind(player);
 	controls().bind(player);
 
-	libraryEl.addEventListener('play-item', ({ detail }) => startPlayback(detail.item, detail.startPosition));
+	libraryEl.addEventListener('play-item', ({ detail }) => startPlayback(detail.item, detail.startPosition, detail.mediaSourceId));
 	libraryEl.addEventListener('refresh-request', () => library().refresh());
 	controlsEl.addEventListener('activity', showControls);
 	controlsEl.addEventListener('stop-request', async () => {
@@ -144,7 +153,20 @@ sceneReady.then(() => {
 		else showControls();
 	});
 
-	player.addEventListener('ended', backToHome);
+	player.addEventListener('outro', ({ detail }) => offerNextEpisode(detail.item));
+	player.addEventListener('ended', async ({ detail }) => {
+		// A late event: something else already started playing.
+		if (player.isActive || player.loading) return;
+		if (upNext().isOpen()) return; // Already offered during the credits.
+		if (upNextDismissedFor === detail.item?.Id || !(await offerNextEpisode(detail.item))) backToHome();
+	});
+	upNextEl.addEventListener('play-next', ({ detail }) => startPlayback(detail.item));
+	upNextEl.addEventListener('dismiss', () => {
+		// Dismissed during the credits: keep watching them.
+		if (player.isActive) upNextDismissedFor = player.item.Id;
+		else backToHome();
+	});
+	upNextEl.addEventListener('autoplay-change', ({ detail }) => setSetting('autoplayNext', detail.enabled));
 	player.addEventListener('error', ({ detail }) => {
 		backToHome();
 		library().setNotice(detail.error?.message ?? 'Playback failed.');
@@ -157,6 +179,21 @@ sceneReady.then(() => {
 		}
 	});
 });
+
+/** Shows the "Up next" prompt after an episode. Returns whether there is a next one. */
+async function offerNextEpisode(item) {
+	if (item?.Type !== 'Episode' || !session) return false;
+	let next = null;
+	try {
+		next = await session.sources.nextEpisode(item);
+	} catch (error) {
+		console.warn('[up-next] could not find the next episode', error);
+	}
+	// The user may have started something else while we were looking it up.
+	if (!next || (player.isActive && player.item?.Id !== item.Id)) return false;
+	upNext().offer(session.api, next, getSetting('autoplayNext'));
+	return true;
+}
 
 async function detectVr() {
 	try {
