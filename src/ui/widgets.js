@@ -91,10 +91,15 @@ AFRAME.registerComponent('ui-button', {
 		active: { type: 'boolean', default: false },
 		disabled: { type: 'boolean', default: false },
 		align: { type: 'string', default: 'center', oneOf: ['left', 'center'] },
+		// Icon name (see icons.js); with a label too, the label becomes a small caption.
+		icon: { type: 'string', default: '' },
+		// Text announced on hover (`tooltip` event, bubbling) for icon buttons.
+		tooltip: { type: 'string', default: '' },
 	},
 
 	init() {
 		this.hovered = 0;
+		this.icon = null;
 		this.el.dataset.interactive = '';
 		this.el.setAttribute('ui-rect', '');
 		this.label = document.createElement('a-entity');
@@ -104,10 +109,12 @@ AFRAME.registerComponent('ui-button', {
 		this.el.addEventListener('mouseenter', () => {
 			this.hovered++;
 			this.refresh();
+			if (this.data.tooltip) this.el.emit('tooltip', { text: this.data.tooltip });
 		});
 		this.el.addEventListener('mouseleave', () => {
 			this.hovered = Math.max(0, this.hovered - 1);
 			this.refresh();
+			if (this.data.tooltip && this.hovered === 0) this.el.emit('tooltip', { text: '' });
 		});
 		// Swallow clicks while disabled.
 		this.el.addEventListener('click', (event) => {
@@ -119,14 +126,27 @@ AFRAME.registerComponent('ui-button', {
 		const d = this.data;
 		const left = d.align === 'left';
 		const padding = left ? 0.025 : 0.01;
+		const color = d.disabled ? COLORS.muted : COLORS.text;
+		if (d.icon && !this.icon) {
+			this.icon = document.createElement('a-entity');
+			this.el.appendChild(this.icon);
+		}
+		const captioned = Boolean(d.icon && d.label);
+		if (this.icon) {
+			this.icon.object3D.visible = Boolean(d.icon);
+			const size = Math.min(d.width, d.height) * (captioned ? 0.36 : 0.5);
+			this.icon.setAttribute('position', `0 ${captioned ? d.height * 0.15 : 0} 0.002`);
+			if (d.icon) this.icon.setAttribute('ui-icon', { name: d.icon, size, color });
+		}
 		this.label.object3D.position.x = left ? -d.width / 2 + padding : 0;
+		this.label.object3D.position.y = captioned ? -d.height * 0.24 : 0;
 		this.label.setAttribute('ui-text', {
 			value: d.label,
-			fontSize: d.fontSize,
+			fontSize: captioned ? d.height * 0.2 : d.fontSize,
 			maxWidth: d.width - 2 * padding,
 			align: d.align,
 			anchorX: left ? 'left' : 'center',
-			color: d.disabled ? COLORS.muted : COLORS.text,
+			color,
 			weight: d.active ? 'bold' : 'normal',
 		});
 		this.refresh();
@@ -220,7 +240,8 @@ export function loadTexture(url) {
 		textureCache.set(url, new Promise((resolve, reject) => {
 			loader.load(url, (texture) => {
 				texture.colorSpace = THREE.SRGBColorSpace;
-				texture.anisotropy = 4;
+				// Sharp when seen at an angle (posters on the big screen, from the side).
+				texture.anisotropy = AFRAME.scenes[0]?.renderer.capabilities.getMaxAnisotropy() ?? 4;
 				resolve(texture);
 			}, undefined, reject);
 		}));

@@ -1,4 +1,4 @@
-/* global XRMediaBinding, XRProjectionLayer, XRRigidTransform */
+/* global XRMediaBinding */
 // The cinema screen: shows the player's <video> fitted into the screen area
 // (keeping its aspect ratio), with subtitles on top.
 //
@@ -6,17 +6,11 @@
 // - In VR, when the browser supports WebXR media layers (Quest Browser), the
 //   video is handed to the headset compositor as a quad layer. The compositor
 //   samples the video once, at display resolution, unaffected by foveation:
-//   much sharper than a WebGL texture. The layer sits *behind* the scene, and
-//   the screen mesh punches a transparent hole in the scene so the layer shows
-//   through while subtitles (drawn after the hole) stay on top.
+//   much sharper than a WebGL texture. See src/xr/layers.js.
 // - Otherwise (desktop, no layers support): a regular WebGL video texture.
 
 import * as THREE from 'three';
-
-// WebXR quad layer width/height interpretation. Follows A-Frame's `layer`
-// component, which was validated on Quest: the values are half extents.
-// If the picture shows at the wrong size on a headset, flip this.
-const QUAD_SIZE_IS_HALF_EXTENT = true;
+import { createHoleMaterial, layersAvailable, poseRelativeTo, quadSize, setBehindLayer } from '../xr/layers.js';
 
 AFRAME.registerComponent('video-screen', {
 	schema: {
@@ -30,8 +24,7 @@ AFRAME.registerComponent('video-screen', {
 	init() {
 		this.idleMaterial = new THREE.MeshBasicMaterial({ color: '#16121b' });
 		this.videoMaterial = new THREE.MeshBasicMaterial({ toneMapped: false });
-		// Writes (0, 0, 0, 0): makes the scene transparent so the layer behind shows.
-		this.holeMaterial = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0, blending: THREE.NoBlending });
+		this.holeMaterial = createHoleMaterial();
 		this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.idleMaterial);
 		this.el.setObject3D('mesh', this.mesh);
 
@@ -88,16 +81,8 @@ AFRAME.registerComponent('video-screen', {
 		}
 	},
 
-	/** Whether the current XR session can show media layers. */
-	layersAvailable() {
-		if (!this.el.sceneEl.xrSession) return false;
-		if (typeof XRMediaBinding === 'undefined' || typeof XRProjectionLayer === 'undefined') return false;
-		// three.js renders through a projection layer only when layers are supported.
-		return this.el.sceneEl.renderer.xr.getBaseLayer() instanceof XRProjectionLayer;
-	},
-
 	createLayer() {
-		if (!this.layersAvailable()) return false;
+		if (typeof XRMediaBinding === 'undefined' || !layersAvailable(this.el.sceneEl)) return false;
 		const sceneEl = this.el.sceneEl;
 		const session = sceneEl.xrSession;
 		try {
@@ -105,17 +90,14 @@ AFRAME.registerComponent('video-screen', {
 			this.layer = binding.createQuadLayer(this.video, {
 				space: sceneEl.renderer.xr.getReferenceSpace(),
 				layout: 'mono',
-				...this.layerSize(),
+				...quadSize(this.size.width, this.size.height),
 			});
 		} catch (error) {
 			console.warn('[screen] media layer unavailable, using a texture', error);
 			this.layer = null;
 			return false;
 		}
-		const projection = sceneEl.renderer.xr.getBaseLayer();
-		// The scene is composited over the video layer using its alpha.
-		projection.blendTextureSourceAlpha = true;
-		session.updateRenderState({ layers: [this.layer, projection] });
+		setBehindLayer(sceneEl, 'video', this.layer, 0);
 		this.updateLayerTransform();
 		console.info('[screen] using a WebXR media layer');
 		return true;
@@ -123,32 +105,15 @@ AFRAME.registerComponent('video-screen', {
 
 	destroyLayer() {
 		if (!this.layer) return;
-		const session = this.el.sceneEl.xrSession;
-		const projection = this.el.sceneEl.renderer.xr.getBaseLayer?.();
-		if (session && projection) session.updateRenderState({ layers: [projection] });
+		setBehindLayer(this.el.sceneEl, 'video', null);
 		this.layer.destroy?.();
 		this.layer = null;
-	},
-
-	layerSize() {
-		const factor = QUAD_SIZE_IS_HALF_EXTENT ? 0.5 : 1;
-		return { width: this.size.width * factor, height: this.size.height * factor };
 	},
 
 	/** Layer pose in the XR reference space, i.e. relative to the rig. */
 	updateLayerTransform() {
 		if (!this.layer) return;
-		const rig = this.data.rig.object3D;
-		rig.updateMatrixWorld();
-		this.el.object3D.updateMatrixWorld();
-		const local = new THREE.Matrix4().copy(rig.matrixWorld).invert().multiply(this.el.object3D.matrixWorld);
-		const position = new THREE.Vector3();
-		const quaternion = new THREE.Quaternion();
-		local.decompose(position, quaternion, new THREE.Vector3());
-		this.layer.transform = new XRRigidTransform(
-			{ x: position.x, y: position.y, z: position.z },
-			{ x: quaternion.x, y: quaternion.y, z: quaternion.z, w: quaternion.w },
-		);
+		this.layer.transform = poseRelativeTo(this.data.rig.object3D, this.el.object3D).transform;
 	},
 
 	fit(aspect) {
@@ -161,7 +126,7 @@ AFRAME.registerComponent('video-screen', {
 		}
 		this.size = { width, height };
 		this.mesh.scale.set(width, height, 1);
-		if (this.layer) Object.assign(this.layer, this.layerSize());
+		if (this.layer) Object.assign(this.layer, quadSize(width, height));
 
 		// Subtitles sit inside the bottom of the picture, sized relative to it.
 		const fontSize = height * 0.052;

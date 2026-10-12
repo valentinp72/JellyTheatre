@@ -8,7 +8,7 @@
 // mediaSourceId } and `refresh-request`.
 
 import { createSources, episodeNumber, resumeSeconds, runtimeLabel, SORTS } from '../jellyfin/library.js';
-import { getSetting, setSetting, SETTING_DEFINITIONS } from '../settings.js';
+import { getSetting, runSettingAction, setSetting, SETTING_DEFINITIONS } from '../settings.js';
 import { formatTime } from './player-controls.js';
 import { truncate } from './text.js';
 import { COLORS, entity, setInteractiveVisible, whenLoaded } from './widgets.js';
@@ -50,6 +50,11 @@ const TABS = [
 const pages = (total, perPage) => Math.max(1, Math.ceil(total / perPage));
 
 AFRAME.registerComponent('library-panel', {
+	schema: {
+		// The on-screen keyboard (kept at lap height, outside the panel).
+		keyboard: { type: 'selector', default: '[ui-keyboard]' },
+	},
+
 	init() {
 		this.api = null;
 		this.sources = null;
@@ -72,7 +77,9 @@ AFRAME.registerComponent('library-panel', {
 			this.render();
 		});
 		this.message = entity({ position: '0 0 0.002', 'ui-text': `fontSize: 0.036; maxWidth: ${WIDTH - 0.4}; align: center; color: ${COLORS.muted}` });
-		this.notice = entity({ position: `0 ${-TOP - 0.06} 0.002`, 'ui-text': `fontSize: 0.032; maxWidth: ${WIDTH}; align: center; color: #ff6b7a` });
+		// In the header, between the title and the buttons: below the panel it
+		// would end up inside the stage when the panel is on the cinema screen.
+		this.notice = entity({ position: `${LEFT + 0.78} ${TOP - 0.065} 0.002`, 'ui-text': 'fontSize: 0.026; maxWidth: 0.8; anchorX: left; color: #ff6b7a' });
 		this.el.append(this.heading, this.refreshButton, this.message, this.notice);
 
 		this.buildTabs();
@@ -86,10 +93,8 @@ AFRAME.registerComponent('library-panel', {
 		};
 		window.addEventListener('settingchange', this.onSettingChange);
 
-		// At lap height, in front of the seat ahead (which would hide it further away).
-		this.keyboard = entity({ 'ui-keyboard': '', position: '0 -0.5 1.45', rotation: '-40 0 0', scale: '0.85 0.85 0.85' });
+		this.keyboard = this.data.keyboard;
 		this.keyboard.addEventListener('key', (event) => this.onKey(event.detail.key));
-		this.el.appendChild(this.keyboard);
 
 		this.onKeyDown = this.onKeyDown.bind(this);
 		window.addEventListener('keydown', this.onKeyDown);
@@ -306,8 +311,9 @@ AFRAME.registerComponent('library-panel', {
 			const y = CONTENT_TOP - 0.14 - i * 0.14;
 			this.text({ value: setting.label, fontSize: 0.034, maxWidth: textWidth }, LEFT, y, this.settings);
 			this.text({ value: setting.description, fontSize: 0.026, color: COLORS.muted, maxWidth: textWidth }, LEFT, y - 0.048, this.settings);
-			const value = this.button({ label: '', width: valueW, height: 0.07 }, RIGHT - valueW / 2, y - 0.035, () => {
-				setSetting(setting.name, !getSetting(setting.name));
+			const value = this.button({ label: setting.action ?? '', width: valueW, height: 0.07 }, RIGHT - valueW / 2, y - 0.035, () => {
+				if (setting.type === 'action') runSettingAction(setting.name);
+				else setSetting(setting.name, !getSetting(setting.name));
 			}, this.settings);
 			return { setting, value };
 		});
@@ -315,6 +321,7 @@ AFRAME.registerComponent('library-panel', {
 
 	renderSettings() {
 		for (const { setting, value } of this.settingRows) {
+			if (setting.type === 'action') continue;
 			const on = getSetting(setting.name);
 			value.setAttribute('ui-button', { label: on ? 'On' : 'Off', active: on });
 		}

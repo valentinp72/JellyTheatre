@@ -1,6 +1,14 @@
 import { PlaybackReporter, resolvePlayback, TICKS_PER_SECOND } from '../jellyfin/playback.js';
 
 const PROGRESS_INTERVAL_MS = 10_000;
+const MAX_HLS_RECOVERIES = 3;
+const MAX_VOLUME = 1.5;
+const LOAD_POLICY = {
+	maxTimeToFirstByteMs: 30_000,
+	maxLoadTimeMs: 120_000,
+	timeoutRetry: { maxNumRetry: 4, retryDelayMs: 1000, maxRetryDelayMs: 4000 },
+	errorRetry: { maxNumRetry: 6, retryDelayMs: 1000, maxRetryDelayMs: 8000, backoff: 'exponential' },
+};
 
 /**
  * Owns the <video> element and the playback session of one item at a time.
@@ -36,6 +44,9 @@ export class Player extends EventTarget {
 		this.outroStart = null;
 		this.outroReached = false;
 		this.sources = null;
+		// Volume goes through Web Audio: the Quest Browser ignores video.volume.
+		this.volume = 1;
+		this.audio = null;
 
 		const v = this.video;
 		v.addEventListener('play', () => this.report('Unpause'));
@@ -79,7 +90,7 @@ export class Player extends EventTarget {
 			position: this.video.currentTime || 0,
 			paused: this.video.paused,
 			muted: this.video.muted,
-			volume: this.video.volume,
+			volume: Math.min(1, this.volume),
 		};
 	}
 
@@ -170,12 +181,39 @@ export class Player extends EventTarget {
 			v.addEventListener('error', onError);
 
 			if (Hls?.isSupported()) {
-				this.hls = new Hls({ startPosition: start, maxBufferLength: 60 });
-				this.hls.on(Hls.Events.ERROR, (_, data) => {
-					if (!data.fatal) return;
-					cleanup();
-					reject(new Error(`Streaming error: ${data.details}`));
+				const hls = new Hls({
+					startPosition: start,
+					maxBufferLength: 60,
+					// A weak server can take a while to produce the first remuxed
+					// segments (and to restart after a seek): be patient.
+					fragLoadPolicy: { default: LOAD_POLICY },
+					playlistLoadPolicy: { default: LOAD_POLICY },
+					manifestLoadPolicy: { default: LOAD_POLICY },
 				});
+				this.hls = hls;
+				let recoveries = 0;
+				let loaded = false;
+				v.addEventListener('loadedmetadata', () => { loaded = true; }, { once: true });
+				hls.on(Hls.Events.ERROR, (_, data) => {
+					if (!data.fatal || this.hls !== hls) return;
+					// The usual hls.js recovery: reload after network errors, reset the
+					// decoder after media errors. Give up after a few attempts.
+					if (recoveries < MAX_HLS_RECOVERIES) {
+						recoveries++;
+						console.warn(`[player] streaming error (${data.details}), recovering (${recoveries}/${MAX_HLS_RECOVERIES})`);
+						if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+						else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+						else recoveries = MAX_HLS_RECOVERIES;
+						if (recoveries < MAX_HLS_RECOVERIES) return;
+					}
+					const error = new Error(`Streaming error: ${data.details}`);
+					if (loaded) this.fail(error);
+					else {
+						cleanup();
+						reject(error);
+					}
+				});
+				hls.on(Hls.Events.FRAG_BUFFERED, () => { recoveries = 0; });
 				this.hls.loadSource(source.url);
 				this.hls.attachMedia(v);
 			} else {
@@ -246,9 +284,37 @@ export class Player extends EventTarget {
 		this.seek(this.video.currentTime + delta);
 	}
 
+	/** @param {number} volume 0 to MAX_VOLUME (above 1 boosts quiet films) */
 	setVolume(volume) {
-		this.video.volume = Math.max(0, Math.min(1, volume));
+		this.volume = Math.round(Math.max(0, Math.min(MAX_VOLUME, volume)) * 10) / 10;
 		this.video.muted = false;
+		try {
+			this.ensureAudioGraph();
+			this.audio.gain.gain.value = this.volume;
+		} catch (error) {
+			// No Web Audio: fall back to the element volume (ignored on some browsers).
+			console.warn('[player] Web Audio unavailable', error);
+			this.video.volume = Math.min(1, this.volume);
+		}
+		this.report('VolumeChange');
+	}
+
+	/**
+	 * Routes the video's audio through a gain node. Created on the first volume
+	 * change (a user gesture, so the AudioContext may start); once created, the
+	 * element's audio only plays through it, for the rest of the session.
+	 */
+	ensureAudioGraph() {
+		if (this.audio) {
+			if (this.audio.context.state === 'suspended') this.audio.context.resume();
+			return;
+		}
+		const context = new AudioContext();
+		const source = context.createMediaElementSource(this.video);
+		const gain = context.createGain();
+		source.connect(gain).connect(context.destination);
+		this.audio = { context, gain };
+		context.resume();
 	}
 
 	report(eventName) {

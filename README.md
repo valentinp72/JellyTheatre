@@ -138,6 +138,13 @@ public/               Static assets (icons…)
         "Turn off auto-play". Media versions picker.
   - [x] In-VR settings page (Settings button in the library panel header).
   - [x] Season tabs with short labels (S01, Specials) that scroll with ‹ ›.
+  - [x] Library shown on the cinema screen (or close to the seat, setting).
+  - [x] Compact icon controls panel, movable with the grip button.
+- [x] **Library as a compositor layer** in VR (crisp text), with in-scene
+      fallback (setting). Volume through Web Audio (up to 150 %).
+- [x] **Rendering**: 72 Hz (3 × 24 fps film cadence), optional 1.25× resolution
+      without foveation for sharper menus; hls.js retries and recovery for slow
+      remux starts.
 - [ ] **5. Cast target**: control JellyTheatre from the official Jellyfin apps.
 - [x] **WebXR media layer**: in VR on Quest, the video is a compositor layer
       behind the scene (much sharper), with a texture fallback elsewhere.

@@ -152,7 +152,7 @@ export function createSources(api, userId) {
  * Portrait poster URL for an item (series poster for episodes).
  * @param {import('@jellyfin/sdk').Api} api
  */
-export function posterUrl(api, item, height = 450) {
+export function posterUrl(api, item, height = 720) {
 	let id = item.Id;
 	let tag = item.ImageTags?.Primary;
 	if (item.Type === 'Episode' && item.SeriesPrimaryImageTag) {

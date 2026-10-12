@@ -51,11 +51,19 @@ checkboxes up to date when a step is finished.
   calling methods on a freshly created entity's components.
 - No getters in A-Frame component definitions: A-Frame copies definitions
   property by property, evaluating getters once at registration. Use methods.
-- In VR the video is a WebXR media layer *behind* the projection layer; the
-  screen mesh punches a hole (alpha 0) so anything drawn after it (subtitles)
-  stays visible. See src/player/video-screen.js.
+- In VR the video (media layer) and the library panel (quad layer) are WebXR
+  layers *behind* the projection layer; the scene punches holes (alpha 0) so
+  anything drawn after them stays visible. Shared code: src/xr/layers.js. The
+  panel's meshes move to three.js layer 5 while layered, so every raycaster
+  must test all layers (`enableAllRaycastLayers`).
+- three.js cameras ignore the scale inherited from their parent: size
+  offscreen cameras in world units (see `fitCamera` in src/xr/panel-layer.js).
+- Never rely on `video.volume` (ignored by the Quest Browser): volume goes
+  through the Web Audio gain in Player.
 - User settings live in src/settings.js (`SETTING_DEFINITIONS`); the in-VR
   settings page is generated from that list. No settings in the 2D lobby.
+- Icons are geometry (src/ui/icons.js), not font glyphs: the bundled Inter
+  subset lacks most symbols. Icon buttons should set a `tooltip`.
 - The playback mode badge (Direct play / Remux / Transcoding) must stay
   accurate: it is how transcoding regressions get noticed.
 - Environments live in `src/environments/<name>/` and must expose a screen

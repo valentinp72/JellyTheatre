@@ -1,5 +1,6 @@
 import './lobby/lobby.css';
 import 'aframe';
+import * as THREE from 'three';
 import { registerSW } from 'virtual:pwa-register';
 import './ui/text.js';
 import './ui/widgets.js';
@@ -7,6 +8,9 @@ import './ui/keyboard.js';
 import './ui/poster.js';
 import './ui/library-panel.js';
 import './ui/up-next.js';
+import './ui/icons.js';
+import './ui/grab-move.js';
+import { enableAllRaycastLayers } from './xr/panel-layer.js';
 import './ui/player-controls.js';
 import './player/video-screen.js';
 import './player/player-input.js';
@@ -20,6 +24,8 @@ import { getSetting, setSetting } from './settings.js';
 registerSW({ immediate: true });
 
 const CONTROLS_HIDE_DELAY_MS = 5000;
+// Rendering resolution when "Sharper rendering" is on (≈ Quest 3 panel resolution).
+const HIGH_RESOLUTION_SCALE = 1.25;
 
 // Instantiate the scene only now that every component is registered.
 const template = document.getElementById('scene-template');
@@ -37,6 +43,7 @@ const player = new Player();
 let session = null;
 let vrSupported = false;
 let hideControlsTimer = null;
+let grabbingControls = false;
 // Episode whose "Up next" prompt was dismissed: don't offer again at its end.
 let upNextDismissedFor = null;
 
@@ -49,6 +56,29 @@ const library = () => libraryEl.components['library-panel'];
 const controls = () => controlsEl.components['player-controls'];
 const upNext = () => upNextEl.components['up-next'];
 const environment = () => environmentEl.components[environments[DEFAULT_ENVIRONMENT].component];
+
+/** The library panel goes on the cinema screen, or close to the seat. */
+function placeLibrary() {
+	const object = libraryEl.object3D;
+	if (getSetting('menuOnScreen')) {
+		const { layout } = environments[DEFAULT_ENVIRONMENT];
+		const { position, maxWidth, maxHeight } = layout.screen;
+		// Rig-local coordinates, slightly in front of the screen.
+		object.position.set(position.x - layout.seat.x, position.y - layout.seat.y, position.z - layout.seat.z + 0.05);
+		object.rotation.set(0, 0, 0);
+		object.scale.setScalar(Math.min(maxWidth / 2.3, maxHeight / 1.42) * 0.96);
+	} else {
+		object.position.set(0, 1.28, -2);
+		object.rotation.set(THREE.MathUtils.degToRad(-4), 0, 0);
+		object.scale.setScalar(1);
+	}
+}
+
+/** Applies "Sharper rendering": must happen before the XR session starts. */
+function applyRenderQuality() {
+	const high = getSetting('highResolution');
+	sceneEl.renderer.xr.setFramebufferScaleFactor(high ? HIGH_RESOLUTION_SCALE : 1);
+}
 
 function setupEnvironment(key) {
 	const { component, layout } = environments[key];
@@ -64,7 +94,7 @@ function showControls() {
 	controls().setVisible(true);
 	clearTimeout(hideControlsTimer);
 	hideControlsTimer = setTimeout(() => {
-		if (!player.video.paused) controls().setVisible(false);
+		if (!player.video.paused && !grabbingControls) controls().setVisible(false);
 	}, CONTROLS_HIDE_DELAY_MS);
 }
 
@@ -104,6 +134,7 @@ const lobby = createLobby({
 	onEnter() {
 		lobby.hide();
 		if (vrSupported) {
+			applyRenderQuality();
 			sceneEl.enterVR().catch((error) => {
 				console.error(error);
 				showFlatScene();
@@ -127,9 +158,34 @@ function showLobby() {
 
 backButton.addEventListener('click', showLobby);
 sceneEl.addEventListener('exit-vr', showLobby);
+sceneEl.addEventListener('enter-vr', () => {
+	// No foveation in high quality: it blurs the edges of menus and text.
+	sceneEl.renderer.xr.setFoveation(getSetting('highResolution') ? 0 : 1);
+});
 
 sceneReady.then(() => {
 	setupEnvironment(DEFAULT_ENVIRONMENT);
+	placeLibrary();
+	enableAllRaycastLayers(sceneEl);
+	libraryEl.addEventListener('panel-layer-failed', () => {
+		library().setNotice('Crisp text unavailable here: using normal rendering.');
+	});
+	libraryEl.setAttribute('panel-layer', 'enabled', getSetting('crispLibrary'));
+	window.addEventListener('settingchange', ({ detail }) => {
+		if (detail.name === 'menuOnScreen') placeLibrary();
+		if (detail.name === 'crispLibrary') libraryEl.setAttribute('panel-layer', 'enabled', detail.value);
+	});
+	window.addEventListener('settingaction', ({ detail }) => {
+		if (detail.name === 'resetControls') controlsEl.components['grab-move'].reset();
+	});
+	controlsEl.addEventListener('grab-start', () => {
+		grabbingControls = true;
+		showControls();
+	});
+	controlsEl.addEventListener('grab-end', () => {
+		grabbingControls = false;
+		showControls();
+	});
 	screenEl.components['video-screen'].bind(player);
 	controls().bind(player);
 
