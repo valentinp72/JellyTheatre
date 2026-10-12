@@ -4,11 +4,8 @@
 // - `toggle-controls`
 //
 // Quest controllers: trigger while pointing at nothing (e.g. the screen) or
-// B/Y show/hide controls, A/X play/pause, thumbstick left/right seeks
-// −10 s / +30 s. Mouse: click on empty space. Keyboard: space, ←/→, c.
-
-const STICK_THRESHOLD = 0.75;
-const STICK_RELEASE = 0.3;
+// B/Y show/hide controls, A/X play/pause (thumbsticks move the view, see
+// view-controls.js). Mouse: click on empty space. Keyboard: space, ←/→, c.
 
 AFRAME.registerComponent('player-input', {
 	schema: {
@@ -16,7 +13,6 @@ AFRAME.registerComponent('player-input', {
 	},
 
 	init() {
-		this.stickLatched = new Map();
 		this.onKeyDown = this.onKeyDown.bind(this);
 		window.addEventListener('keydown', this.onKeyDown);
 
@@ -27,7 +23,6 @@ AFRAME.registerComponent('player-input', {
 			for (const name of ['bbuttondown', 'ybuttondown']) {
 				hand.addEventListener(name, () => this.el.emit('toggle-controls'));
 			}
-			hand.addEventListener('thumbstickmoved', (event) => this.onStick(hand, event.detail));
 			hand.addEventListener('triggerdown', () => {
 				if (!pointsAtSomething(hand)) this.el.emit('toggle-controls');
 			});
@@ -54,16 +49,6 @@ AFRAME.registerComponent('player-input', {
 
 	command(command, delta) {
 		this.el.emit('player-command', { command, delta });
-	},
-
-	onStick(hand, { x }) {
-		const latched = this.stickLatched.get(hand);
-		if (latched && Math.abs(x) < STICK_RELEASE) {
-			this.stickLatched.set(hand, false);
-		} else if (!latched && Math.abs(x) > STICK_THRESHOLD) {
-			this.stickLatched.set(hand, true);
-			this.command('seek', x > 0 ? 30 : -10);
-		}
 	},
 
 	onKeyDown(event) {

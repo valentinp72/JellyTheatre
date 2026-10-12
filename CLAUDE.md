@@ -34,7 +34,8 @@ checkboxes up to date when a step is finished.
    transcode. Never let a subtitle or audio track choice trigger a *video*
    transcode when it can be avoided (audio-only transcode is acceptable).
 2. **Subtitles.** Text subtitles are fetched as WebVTT via `External` delivery
-   and rendered in-scene by the client. No burn-in by default.
+   and rendered in-scene by the client; PGS is fetched as-is and drawn by
+   libpgs. No burn-in, ever.
 3. **Jellyfin is the source of truth** for watch state: always report playback
    start / progress / stop.
 4. **No secrets in the repo.** Server URL and tokens live in the browser's
@@ -66,7 +67,13 @@ checkboxes up to date when a step is finished.
   subset lacks most symbols. Icon buttons should set a `tooltip`.
 - The playback mode badge (Direct play / Remux / Transcoding) must stay
   accurate: it is how transcoding regressions get noticed.
-- Environments live in `src/environments/<name>/` and must expose a screen
-  anchor (position, rotation, size) and a default viewer position, so the
-  player is environment-agnostic.
+- Environments live in `src/environments/<name>/`, are registered in
+  `src/environments/index.js` with a layout (screen anchor, seat, `ar` for
+  passthrough) and must implement `setHouseLights(on)`. The player and menus
+  are environment-agnostic.
+- In passthrough A-Frame sets the `ar-mode` state, *not* `vr-mode`: check both
+  when testing for an immersive session.
+- The camera rig moves (walking, recentering, tilt): anything placed in world
+  space but parented to the rig, and every XR layer transform, must be
+  recomputed on `rig-moved` / every frame.
 - The 2D lobby (`src/lobby/`) is plain DOM and must work without a headset.

@@ -5,7 +5,8 @@ import { getShowApi } from '@jellyfin/sdk/lib/utils/api/show-api';
 import { getUserDataApi } from '@jellyfin/sdk/lib/utils/api/user-data-api';
 import { TICKS_PER_SECOND } from './playback.js';
 
-const FIELDS = ['Overview', 'MediaSourceCount', 'PrimaryImageAspectRatio', 'Genres', 'ChildCount'];
+// MediaSources: quality badges and the compatibility estimate on posters.
+const FIELDS = ['Overview', 'MediaSourceCount', 'MediaSources', 'PrimaryImageAspectRatio', 'Genres', 'ChildCount'];
 const IMAGE_TYPES = ['Primary', 'Thumb', 'Backdrop'];
 const LATEST_LIMIT = 42;
 
@@ -112,7 +113,7 @@ export function createSources(api, userId) {
 			return listSource(async () => (await shows.getEpisodes({ ...common, seriesId, seasonId })).data.Items ?? []);
 		},
 		/** Fresh copy of an item (e.g. its resume point after watching), with its media versions. */
-		item: async (id) => (await library.getItems({ ...common, fields: [...FIELDS, 'MediaSources'], ids: [id] })).data.Items?.[0] ?? null,
+		item: async (id) => (await library.getItems({ ...common, ids: [id] })).data.Items?.[0] ?? null,
 		/** @returns {Promise<object>} the updated UserData */
 		setPlayed: async (itemId, played) => {
 			const userData = getUserDataApi(api);

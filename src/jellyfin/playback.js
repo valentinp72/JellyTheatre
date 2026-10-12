@@ -24,7 +24,7 @@ const VIDEO_TRANSCODE_REASONS = new Set([
  * @property {string} playSessionId
  * @property {object} mediaSource
  * @property {number | undefined} audioStreamIndex
- * @property {Array<{ index: number, label: string, language?: string, isDefault: boolean, isForced: boolean, url: string }>} subtitles
+ * @property {Array<{ index: number, label: string, language?: string, isDefault: boolean, isForced: boolean, url: string, kind: 'text' | 'pgs' }>} subtitles
  * @property {Array<{ index: number, label: string, isDefault: boolean }>} audioTracks
  */
 
@@ -113,15 +113,18 @@ function listAudioTracks(mediaSource) {
 		.map((stream) => ({ index: stream.Index, label: streamLabel(stream), isDefault: stream.IsDefault }));
 }
 
+const isPgs = (stream) => /^(pgssub|pgs|hdmv_pgs_subtitle)$/i.test(stream.Codec ?? '');
+
 function listSubtitles(api, item, mediaSource) {
 	return (mediaSource.MediaStreams ?? [])
-		.filter((stream) => stream.Type === 'Subtitle' && stream.IsTextSubtitleStream)
+		.filter((stream) => stream.Type === 'Subtitle' && (stream.IsTextSubtitleStream || isPgs(stream)))
 		.map((stream) => {
-			// DeliveryUrl is set when the profile's External/vtt rule applied; build it
-			// ourselves otherwise (any text subtitle can be converted to WebVTT).
+			const kind = stream.IsTextSubtitleStream ? 'text' : 'pgs';
+			// DeliveryUrl is set when the profile's External rule applied; build it
+			// ourselves otherwise (text converts to WebVTT, PGS is sent as-is).
 			const path = stream.DeliveryMethod === 'External' && stream.DeliveryUrl && !stream.IsExternalUrl
 				? stream.DeliveryUrl
-				: `/Videos/${item.Id}/${mediaSource.Id}/Subtitles/${stream.Index}/0/Stream.vtt`;
+				: `/Videos/${item.Id}/${mediaSource.Id}/Subtitles/${stream.Index}/0/Stream.${kind === 'text' ? 'vtt' : 'pgssub'}`;
 			const url = new URL(stream.IsExternalUrl ? stream.DeliveryUrl : api.basePath + path);
 			url.searchParams.set('api_key', api.accessToken);
 			return {
@@ -131,6 +134,7 @@ function listSubtitles(api, item, mediaSource) {
 				isDefault: stream.IsDefault,
 				isForced: stream.IsForced,
 				url: url.toString(),
+				kind,
 			};
 		});
 }

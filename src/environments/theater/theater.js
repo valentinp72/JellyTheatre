@@ -27,6 +27,8 @@ export const theaterLayout = {
 	seat: { x: 0, y: rowFloor(VIEWER_ROW), z: rowZ(VIEWER_ROW) },
 };
 
+const IDLE_GLOW = 6;
+const IDLE_GLOW_COLOR = '#c8d0ff';
 const HOUSE_LIGHTS_UP = 1;
 const HOUSE_LIGHTS_DOWN = 0.12;
 
@@ -202,6 +204,22 @@ AFRAME.registerComponent('theater-environment', {
 			}
 		}
 		this.applyLights(this.lightLevel);
+
+		// The screen light follows the picture (see video-screen's `screen-color`).
+		this.glowColor = new THREE.Color(IDLE_GLOW_COLOR);
+		this.glowTarget = new THREE.Color(IDLE_GLOW_COLOR);
+		this.glowIntensity = IDLE_GLOW;
+		this.glowIntensityTarget = IDLE_GLOW;
+		this.onScreenColor = (event) => {
+			if (event.detail) {
+				this.glowTarget.copy(event.detail.color);
+				this.glowIntensityTarget = 1.5 + 14 * event.detail.luminance;
+			} else {
+				this.glowTarget.set(IDLE_GLOW_COLOR);
+				this.glowIntensityTarget = IDLE_GLOW;
+			}
+		};
+		this.el.sceneEl.addEventListener('screen-color', this.onScreenColor);
 	},
 
 	/** Dims or raises the house lights (smoothly). */
@@ -217,6 +235,13 @@ AFRAME.registerComponent('theater-environment', {
 	},
 
 	tick(time, delta) {
+		// Ease the screen light towards the picture's color (~0.3 s).
+		const k = Math.min(1, delta / 300);
+		this.glowColor.lerp(this.glowTarget, k);
+		this.glowIntensity += (this.glowIntensityTarget - this.glowIntensity) * k;
+		this.screenLight.color.copy(this.glowColor);
+		this.screenLight.intensity = this.glowIntensity;
+
 		if (this.lightLevel === this.lightTarget) return;
 		const step = (delta / 1000) / 2; // full fade in ~2 s
 		this.lightLevel = this.lightTarget > this.lightLevel
@@ -226,6 +251,7 @@ AFRAME.registerComponent('theater-environment', {
 	},
 
 	remove() {
+		this.el.sceneEl.removeEventListener('screen-color', this.onScreenColor);
 		this.el.removeObject3D('theater');
 	},
 });

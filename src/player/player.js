@@ -1,4 +1,5 @@
 import { PlaybackReporter, resolvePlayback, TICKS_PER_SECOND } from '../jellyfin/playback.js';
+import pgsWorkerUrl from 'libpgs/dist/libpgs.worker.js?url';
 
 const PROGRESS_INTERVAL_MS = 10_000;
 const MAX_HLS_RECOVERIES = 3;
@@ -17,6 +18,8 @@ const LOAD_POLICY = {
  * - `statechange`: anything visible changed (play/pause, item, tracks…)
  * - `timeupdate`: position changed
  * - `subtitle`: { detail: { text } } the subtitle line to display ('' to clear)
+ * - `image-subtitle`: { detail: { canvas } } PGS subtitles are drawn in this
+ *   canvas, or { canvas: null } when no image subtitle is shown
  * - `ended`: the item finished
  * - `outro`: the end credits started (needs media segments on the server)
  * - `error`: { detail: { error } }
@@ -40,6 +43,7 @@ export class Player extends EventTarget {
 		this.progressTimer = null;
 		this.subtitleIndex = -1;
 		this.subtitleTrack = null;
+		this.pgs = null;
 		this.loading = false;
 		this.outroStart = null;
 		this.outroReached = false;
@@ -231,12 +235,12 @@ export class Player extends EventTarget {
 
 	/** @param {number} index Jellyfin stream index, -1 to disable */
 	selectSubtitle(index) {
-		this.subtitleTrack?.remove();
-		this.subtitleTrack = null;
+		this.clearSubtitles();
 		this.subtitleIndex = index;
-		this.emit('subtitle', { text: '' });
 		const sub = this.source?.subtitles.find((s) => s.index === index);
-		if (sub) {
+		if (sub?.kind === 'pgs') {
+			this.showPgs(sub);
+		} else if (sub) {
 			const track = document.createElement('track');
 			track.kind = 'subtitles';
 			track.src = sub.url;
@@ -255,6 +259,39 @@ export class Player extends EventTarget {
 			this.report('SubtitleTrackChange');
 		}
 		this.emit('statechange');
+	}
+
+	clearSubtitles() {
+		this.subtitleTrack?.remove();
+		this.subtitleTrack = null;
+		this.emit('subtitle', { text: '' });
+		if (this.pgs) {
+			this.pgs.renderer.dispose();
+			this.pgs = null;
+			this.emit('image-subtitle', { canvas: null });
+		}
+	}
+
+	/** PGS (image) subtitles, drawn by libpgs into a canvas shown on the screen. */
+	async showPgs(sub) {
+		const { PgsRenderer } = await import('libpgs');
+		const canvas = document.createElement('canvas');
+		const renderer = new PgsRenderer({
+			video: this.video,
+			canvas,
+			subUrl: sub.url,
+			workerUrl: pgsWorkerUrl,
+			aspectRatio: 'fill',
+			// Draw in the main thread, so the canvas can be used as a WebGL texture.
+			mode: 'workerWithoutOffscreenCanvas',
+		});
+		if (this.subtitleIndex !== sub.index) {
+			renderer.dispose();
+			return;
+		}
+		this.pgs = { renderer, canvas };
+		this.emit('image-subtitle', { canvas });
+		renderer.ready.catch((error) => console.warn('[player] PGS subtitles failed to load', sub.url, error));
 	}
 
 	/** Switching audio needs a new stream: browsers can't pick tracks of a file. */
@@ -345,8 +382,7 @@ export class Player extends EventTarget {
 		this.source = null;
 		this.outroStart = null;
 		this.outroReached = false;
-		this.subtitleTrack?.remove();
-		this.subtitleTrack = null;
+		this.clearSubtitles();
 		this.subtitleIndex = -1;
 		this.hls?.destroy();
 		this.hls = null;

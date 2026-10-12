@@ -23,9 +23,9 @@ immersive WebXR session only WebGL output is visible, and a cross-origin web pag
 (iframe/DOM) cannot be rendered into a WebGL texture. JellyTheatre therefore talks
 to the Jellyfin REST API directly (through `@jellyfin/sdk`) and draws its own UI.
 
-To keep the convenience of the official apps, JellyTheatre will also register as a
-**remote-controllable session**, so you can pick something in Jellyfin web or on
-your phone and "play on" JellyTheatre.
+JellyTheatre is **standalone**: everything (browsing, search, playback,
+settings) happens inside the headset. It is not a remote-control target for the
+official Jellyfin apps.
 
 ### Jellyfin API usage
 
@@ -38,7 +38,6 @@ your phone and "play on" JellyTheatre.
 | Stream selection | `POST /Items/{id}/PlaybackInfo` with a device profile describing the headset |
 | Progress sync | `POST /Sessions/Playing`, `/Sessions/Playing/Progress` (≈10 s + on pause/seek), `/Sessions/Playing/Stopped` |
 | Subtitles | `DeliveryUrl` of external subtitle streams (WebVTT) |
-| Remote control | WebSocket `/socket` + `POST /Sessions/Capabilities/Full` |
 
 ### Playback strategy (minimising server load)
 
@@ -55,8 +54,9 @@ claim support we don't have, and never under-claim what the Quest can decode
 
 Subtitles must never force a transcode: text subtitles are requested with
 `External` delivery (converted to WebVTT by the server, which is cheap) and
-rendered by the client. Image-based subtitles (PGS/VobSub) would require burn-in,
-so they are not offered by default; client-side PGS rendering is a later step.
+rendered by the client. PGS image subtitles are also delivered as-is and drawn
+by the client (libpgs). Other image formats (VobSub/DVB) would require burn-in,
+so they are not offered.
 
 ### Constraints
 
@@ -104,7 +104,7 @@ On desktop, Meta's *Immersive Web Emulator* browser extension can emulate a Ques
 index.html            Single page: 2D lobby overlay + A-Frame scene
 src/
   main.js             Entry point, wires lobby, scene and app state
-  jellyfin/           API client, auth (Quick Connect), playback, reporting, remote
+  jellyfin/           API client, auth (Quick Connect), playback, reporting, library
   player/             Player (direct / HLS), screen component, controller input
   ui/                 In-VR UI components (panels, buttons, poster grid, seek bar)
   environments/       Environment registry + environments (theater, …)
@@ -145,12 +145,19 @@ public/               Static assets (icons…)
 - [x] **Rendering**: 72 Hz (3 × 24 fps film cadence), optional 1.25× resolution
       without foveation for sharper menus; hls.js retries and recovery for slow
       remux starts.
-- [ ] **5. Cast target**: control JellyTheatre from the official Jellyfin apps.
 - [x] **WebXR media layer**: in VR on Quest, the video is a compositor layer
       behind the scene (much sharper), with a texture fallback elsewhere.
-- [ ] **6. Polish**: screen-reactive ambient
-      light, seat selection & recentre, client-side PGS subtitles, more
-      environments including passthrough mode.
+- [x] **5. Polish**
+  - [x] View: move around (left stick), snap turn and height (right stick),
+        recenter (right stick click), back to seat (left stick click), tilt
+        recenter for watching reclined.
+  - [x] Media quality and compatibility in menus: resolution / HDR badges and
+        a direct play / remux / transcode indicator on posters; full details
+        and the server's decision (with reasons) on the details page.
+  - [x] Room lighting that follows the colours on screen.
+  - [x] Environments: theatre, dark void, passthrough ("My room", an
+        immersive-ar session with the screen in your real room).
+  - [x] Image subtitles (PGS) rendered client-side (libpgs), never burned in.
 
 ## License
 

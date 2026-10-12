@@ -72,7 +72,8 @@ AFRAME.registerComponent('panel-layer', {
 
 	shouldUseLayer() {
 		const sceneEl = this.el.sceneEl;
-		return this.data.enabled && !this.failed && sceneEl.is('vr-mode') && isVisible(this.el.object3D) && layersAvailable(sceneEl)
+		const immersive = sceneEl.is('vr-mode') || sceneEl.is('ar-mode');
+		return this.data.enabled && !this.failed && immersive && isVisible(this.el.object3D) && layersAvailable(sceneEl)
 			&& typeof sceneEl.renderer.xr.getBinding === 'function';
 	},
 

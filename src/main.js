@@ -14,7 +14,7 @@ import { enableAllRaycastLayers } from './xr/panel-layer.js';
 import './ui/player-controls.js';
 import './player/video-screen.js';
 import './player/player-input.js';
-import './environments/theater/theater.js';
+import './player/view-controls.js';
 import { DEFAULT_ENVIRONMENT, environments } from './environments/index.js';
 import { createSources } from './jellyfin/library.js';
 import { createLobby } from './lobby/lobby.js';
@@ -42,8 +42,12 @@ const backButton = document.getElementById('back-to-lobby');
 const player = new Player();
 let session = null;
 let vrSupported = false;
+let arSupported = false;
+let currentEnvironment = null;
 let hideControlsTimer = null;
 let grabbingControls = false;
+// Set while restarting the XR session for another environment.
+let switchingSession = false;
 // Episode whose "Up next" prompt was dismissed: don't offer again at its end.
 let upNextDismissedFor = null;
 
@@ -55,18 +59,27 @@ const sceneReady = new Promise((resolve) => {
 const library = () => libraryEl.components['library-panel'];
 const controls = () => controlsEl.components['player-controls'];
 const upNext = () => upNextEl.components['up-next'];
-const environment = () => environmentEl.components[environments[DEFAULT_ENVIRONMENT].component];
+const environmentKey = () => (environments[getSetting('environment')] ? getSetting('environment') : DEFAULT_ENVIRONMENT);
+const environment = () => environmentEl.components[environments[currentEnvironment].component];
 
-/** The library panel goes on the cinema screen, or close to the seat. */
+/**
+ * The library panel goes on the cinema screen, or close to the user. It is a
+ * child of the rig (so it follows the user in "close" mode); on the screen,
+ * its rig-local pose is recomputed whenever the rig moves.
+ */
 function placeLibrary() {
 	const object = libraryEl.object3D;
 	if (getSetting('menuOnScreen')) {
-		const { layout } = environments[DEFAULT_ENVIRONMENT];
-		const { position, maxWidth, maxHeight } = layout.screen;
-		// Rig-local coordinates, slightly in front of the screen.
-		object.position.set(position.x - layout.seat.x, position.y - layout.seat.y, position.z - layout.seat.z + 0.05);
-		object.rotation.set(0, 0, 0);
-		object.scale.setScalar(Math.min(maxWidth / 2.3, maxHeight / 1.42) * 0.96);
+		const { position, maxWidth, maxHeight } = environments[currentEnvironment].layout.screen;
+		const scale = Math.min(maxWidth / 2.3, maxHeight / 1.42) * 0.96;
+		const world = new THREE.Matrix4().compose(
+			new THREE.Vector3(position.x, position.y, position.z + 0.05),
+			new THREE.Quaternion(),
+			new THREE.Vector3(scale, scale, scale),
+		);
+		rigEl.object3D.updateMatrixWorld();
+		world.premultiply(new THREE.Matrix4().copy(rigEl.object3D.matrixWorld).invert());
+		world.decompose(object.position, object.quaternion, object.scale);
 	} else {
 		object.position.set(0, 1.28, -2);
 		object.rotation.set(THREE.MathUtils.degToRad(-4), 0, 0);
@@ -81,12 +94,53 @@ function applyRenderQuality() {
 }
 
 function setupEnvironment(key) {
+	if (currentEnvironment) environmentEl.removeAttribute(environments[currentEnvironment].component);
+	currentEnvironment = key;
 	const { component, layout } = environments[key];
 	environmentEl.setAttribute(component, '');
+	// Passthrough: no background, so the real room shows through.
+	if (layout.ar) sceneEl.removeAttribute('background');
+	else sceneEl.setAttribute('background', 'color: #000000');
 	const { position, maxWidth, maxHeight } = layout.screen;
 	screenEl.object3D.position.set(position.x, position.y, position.z);
 	screenEl.setAttribute('video-screen', { maxWidth, maxHeight });
 	rigEl.object3D.position.set(layout.seat.x, layout.seat.y, layout.seat.z);
+	sceneEl.setAttribute('view-controls', { target: position, seat: layout.seat });
+	environment()?.setHouseLights(!player.isActive);
+	placeLibrary();
+}
+
+/** Starts the immersive session the current environment needs. */
+function enterImmersive() {
+	applyRenderQuality();
+	const wantsAr = environments[currentEnvironment].layout.ar && arSupported;
+	return wantsAr ? sceneEl.enterAR() : sceneEl.enterVR();
+}
+
+/**
+ * Switching to or from passthrough needs another kind of XR session: end
+ * this one and start the other (the settings click is a user gesture).
+ */
+async function switchEnvironment(key) {
+	const sessionKind = (k) => Boolean(environments[k].layout.ar && arSupported);
+	const restart = sceneEl.is('vr-mode') || sceneEl.is('ar-mode');
+	const needsNewSession = restart && sessionKind(key) !== sessionKind(currentEnvironment);
+	setupEnvironment(key);
+	if (!needsNewSession) {
+		sceneEl.components['view-controls'].backToSeat();
+		return;
+	}
+	switchingSession = true;
+	try {
+		await sceneEl.exitVR();
+		await enterImmersive();
+	} catch (error) {
+		console.error(error);
+		library().setNotice('Press "Enter the theatre" to continue in the new environment.');
+		showLobby();
+	} finally {
+		switchingSession = false;
+	}
 }
 
 function showControls() {
@@ -134,8 +188,7 @@ const lobby = createLobby({
 	onEnter() {
 		lobby.hide();
 		if (vrSupported) {
-			applyRenderQuality();
-			sceneEl.enterVR().catch((error) => {
+			enterImmersive().catch((error) => {
 				console.error(error);
 				showFlatScene();
 			});
@@ -157,15 +210,16 @@ function showLobby() {
 }
 
 backButton.addEventListener('click', showLobby);
-sceneEl.addEventListener('exit-vr', showLobby);
+sceneEl.addEventListener('exit-vr', () => {
+	if (!switchingSession) showLobby();
+});
 sceneEl.addEventListener('enter-vr', () => {
 	// No foveation in high quality: it blurs the edges of menus and text.
 	sceneEl.renderer.xr.setFoveation(getSetting('highResolution') ? 0 : 1);
 });
 
 sceneReady.then(() => {
-	setupEnvironment(DEFAULT_ENVIRONMENT);
-	placeLibrary();
+	setupEnvironment(environmentKey());
 	enableAllRaycastLayers(sceneEl);
 	libraryEl.addEventListener('panel-layer-failed', () => {
 		library().setNotice('Crisp text unavailable here: using normal rendering.');
@@ -173,10 +227,18 @@ sceneReady.then(() => {
 	libraryEl.setAttribute('panel-layer', 'enabled', getSetting('crispLibrary'));
 	window.addEventListener('settingchange', ({ detail }) => {
 		if (detail.name === 'menuOnScreen') placeLibrary();
+		if (detail.name === 'environment' && environmentKey() !== currentEnvironment) switchEnvironment(environmentKey());
 		if (detail.name === 'crispLibrary') libraryEl.setAttribute('panel-layer', 'enabled', detail.value);
 	});
+	sceneEl.addEventListener('rig-moved', () => {
+		if (getSetting('menuOnScreen')) placeLibrary();
+	});
 	window.addEventListener('settingaction', ({ detail }) => {
+		const view = sceneEl.components['view-controls'];
 		if (detail.name === 'resetControls') controlsEl.components['grab-move'].reset();
+		else if (detail.name === 'recenter') view.recenter();
+		else if (detail.name === 'tiltRecenter') view.recenter({ tilt: true });
+		else if (detail.name === 'backToSeat') view.backToSeat();
 	});
 	controlsEl.addEventListener('grab-start', () => {
 		grabbingControls = true;
@@ -254,6 +316,7 @@ async function offerNextEpisode(item) {
 async function detectVr() {
 	try {
 		vrSupported = (await navigator.xr?.isSessionSupported('immersive-vr')) === true;
+		arSupported = (await navigator.xr?.isSessionSupported('immersive-ar')) === true;
 	} catch {
 		vrSupported = false;
 	}

@@ -7,9 +7,12 @@
 // be marked watched or favourite. Emits `play-item` { item, startPosition,
 // mediaSourceId } and `refresh-request`.
 
+import { describeMedia, describeTranscodeReason } from '../jellyfin/device-profile.js';
 import { createSources, episodeNumber, resumeSeconds, runtimeLabel, SORTS } from '../jellyfin/library.js';
+import { resolvePlayback } from '../jellyfin/playback.js';
 import { getSetting, runSettingAction, setSetting, SETTING_DEFINITIONS } from '../settings.js';
 import { formatTime } from './player-controls.js';
+import { PLAYBACK_COLORS } from './poster.js';
 import { truncate } from './text.js';
 import { COLORS, entity, setInteractiveVisible, whenLoaded } from './widgets.js';
 
@@ -200,7 +203,12 @@ AFRAME.registerComponent('library-panel', {
 		this.detailTitle = this.text({ fontSize: 0.055, weight: 'bold', maxWidth }, x, CONTENT_TOP + 0.01, this.detail);
 		this.detailSubtitle = this.text({ fontSize: 0.034, maxWidth }, x, CONTENT_TOP - 0.07, this.detail);
 		this.detailMeta = this.text({ fontSize: 0.026, color: COLORS.muted, maxWidth }, x, CONTENT_TOP - 0.13, this.detail);
-		this.detailOverview = this.text({ fontSize: 0.028, maxWidth, lineHeight: 1.35 }, x, CONTENT_TOP - 0.19, this.detail);
+		// Media info: what the file is, and how it will play here.
+		this.detailVideo = this.text({ fontSize: 0.024, maxWidth }, x, CONTENT_TOP - 0.18, this.detail);
+		this.detailAudio = this.text({ fontSize: 0.024, maxWidth }, x, CONTENT_TOP - 0.215, this.detail);
+		this.detailSubs = this.text({ fontSize: 0.024, maxWidth }, x, CONTENT_TOP - 0.25, this.detail);
+		this.detailPlayback = this.text({ fontSize: 0.026, weight: 'bold', maxWidth }, x, CONTENT_TOP - 0.29, this.detail);
+		this.detailOverview = this.text({ fontSize: 0.026, maxWidth, lineHeight: 1.35 }, x, CONTENT_TOP - 0.35, this.detail);
 
 		const y = CONTENT_TOP - 0.72;
 		this.detailPlay = this.button({ label: 'Play', width: 0.42, activeColor: COLORS.accent, active: true }, x + 0.21, y, () => this.playFromDetail(true), this.detail);
@@ -305,15 +313,28 @@ AFRAME.registerComponent('library-panel', {
 		this.el.appendChild(this.settings);
 		this.text({ value: 'Settings', fontSize: 0.05, weight: 'bold' }, LEFT, CONTENT_TOP + 0.01, this.settings);
 		this.button({ label: '‹ Back', width: 0.2 }, RIGHT - 0.1, CONTENT_TOP - 0.02, () => this.back(), this.settings);
-		const valueW = 0.2;
-		const textWidth = RIGHT - LEFT - valueW - 0.1;
+		// Two columns of settings.
+		const valueW = 0.18;
+		const columnGap = 0.08;
+		const columnW = (RIGHT - LEFT - columnGap) / 2;
+		const textWidth = columnW - valueW - 0.04;
+		const perColumn = Math.ceil(SETTING_DEFINITIONS.length / 2);
 		this.settingRows = SETTING_DEFINITIONS.map((setting, i) => {
-			const y = CONTENT_TOP - 0.14 - i * 0.14;
-			this.text({ value: setting.label, fontSize: 0.034, maxWidth: textWidth }, LEFT, y, this.settings);
-			this.text({ value: setting.description, fontSize: 0.026, color: COLORS.muted, maxWidth: textWidth }, LEFT, y - 0.048, this.settings);
-			const value = this.button({ label: setting.action ?? '', width: valueW, height: 0.07 }, RIGHT - valueW / 2, y - 0.035, () => {
-				if (setting.type === 'action') runSettingAction(setting.name);
-				else setSetting(setting.name, !getSetting(setting.name));
+			const column = Math.floor(i / perColumn);
+			const x = LEFT + column * (columnW + columnGap);
+			const y = CONTENT_TOP - 0.12 - (i % perColumn) * 0.2;
+			this.text({ value: setting.label, fontSize: 0.03, maxWidth: textWidth }, x, y, this.settings);
+			this.text({ value: setting.description, fontSize: 0.022, color: COLORS.muted, maxWidth: textWidth, lineHeight: 1.3 }, x, y - 0.042, this.settings);
+			const value = this.button({ label: setting.action ?? '', width: valueW, height: 0.065 }, x + columnW - valueW / 2, y - 0.04, () => {
+				if (setting.type === 'action') {
+					runSettingAction(setting.name);
+				} else if (setting.type === 'choice') {
+					// Cycle through the options.
+					const index = setting.options.findIndex((option) => option.value === getSetting(setting.name));
+					setSetting(setting.name, setting.options[(index + 1) % setting.options.length].value);
+				} else {
+					setSetting(setting.name, !getSetting(setting.name));
+				}
 			}, this.settings);
 			return { setting, value };
 		});
@@ -322,6 +343,11 @@ AFRAME.registerComponent('library-panel', {
 	renderSettings() {
 		for (const { setting, value } of this.settingRows) {
 			if (setting.type === 'action') continue;
+			if (setting.type === 'choice') {
+				const current = setting.options.find((option) => option.value === getSetting(setting.name));
+				value.setAttribute('ui-button', { label: current?.label ?? '', active: false });
+				continue;
+			}
 			const on = getSetting(setting.name);
 			value.setAttribute('ui-button', { label: on ? 'On' : 'Off', active: on });
 		}
@@ -673,7 +699,8 @@ AFRAME.registerComponent('library-panel', {
 			item.UserData?.Played ? 'Watched' : '',
 		].filter(Boolean).join('  ·  ');
 		this.detailMeta.setAttribute('ui-text', 'value', meta);
-		this.detailOverview.setAttribute('ui-text', 'value', truncate(item.Overview ?? '', 640));
+		this.detailOverview.setAttribute('ui-text', 'value', truncate(item.Overview ?? '', 420));
+		this.renderMediaInfo(view);
 
 		const resume = resumeSeconds(item);
 		this.detailPlay.setAttribute('ui-button', 'label', resume > 0 ? `Resume from ${formatTime(resume)}` : 'Play');
@@ -693,6 +720,42 @@ AFRAME.registerComponent('library-panel', {
 			const name = versions[view.versionIndex]?.Name ?? `Version ${view.versionIndex + 1}`;
 			this.detailVersion.setAttribute('ui-button', 'label', `Version: ${truncate(name, 26)}`);
 		}
+	},
+
+	renderMediaInfo(view) {
+		const source = view.item.MediaSources?.[view.versionIndex];
+		const media = source ? describeMedia(source) : null;
+		this.detailVideo.setAttribute('ui-text', 'value', media ? `Video   ${media.video}` : '');
+		this.detailAudio.setAttribute('ui-text', 'value', media ? `Audio   ${media.audio}` : '');
+		this.detailSubs.setAttribute('ui-text', 'value', media ? `Subtitles   ${media.subtitles}` : '');
+
+		// Ask the server how it would actually play (no stream is started).
+		const sourceId = source?.Id;
+		if (!view.check || view.check.sourceId !== sourceId) {
+			const check = { sourceId, status: 'loading' };
+			view.check = check;
+			resolvePlayback(this.api, { item: view.item, userId: this.user.Id, mediaSourceId: sourceId })
+				.then((result) => Object.assign(check, { status: 'done', mode: result.mode, reasons: result.transcodeReasons }))
+				.catch(() => Object.assign(check, { status: 'error' }))
+				.finally(() => {
+					if (this.top() === view && view.check === check) this.renderMediaInfo(view);
+				});
+		}
+		const check = view.check;
+		let text = 'Checking playback…';
+		let color = COLORS.muted;
+		if (check.status === 'error') {
+			text = 'Could not check how this plays.';
+		} else if (check.status === 'done') {
+			const reasons = check.reasons.map(describeTranscodeReason).join(', ');
+			color = PLAYBACK_COLORS[check.mode];
+			text = {
+				direct: 'Direct play: no transcoding',
+				remux: `Remux, video not transcoded (${reasons})`,
+				transcode: `Needs transcoding (${reasons})`,
+			}[check.mode];
+		}
+		this.detailPlayback.setAttribute('ui-text', { value: text, color });
 	},
 
 	async renderSeries(view) {

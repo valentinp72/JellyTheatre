@@ -8,6 +8,18 @@ const KEY = 'jellytheatre.settings';
  */
 export const SETTING_DEFINITIONS = [
 	{
+		name: 'environment',
+		type: 'choice',
+		default: 'theater',
+		options: [
+			{ value: 'theater', label: 'Theatre' },
+			{ value: 'void', label: 'Dark void' },
+			{ value: 'passthrough', label: 'My room' },
+		],
+		label: 'Environment',
+		description: 'Where you watch. "My room" shows your real surroundings (passthrough).',
+	},
+	{
 		name: 'autoplayNext',
 		type: 'boolean',
 		default: true,
@@ -34,6 +46,27 @@ export const SETTING_DEFINITIONS = [
 		default: true,
 		label: 'Sharper rendering',
 		description: 'Render menus and the theatre at a higher resolution. Uses more battery; applies the next time you enter VR.',
+	},
+	{
+		name: 'recenter',
+		type: 'action',
+		label: 'Recenter',
+		description: 'Bring the screen in front of you. Shortcut: click the right stick.',
+		action: 'Recenter',
+	},
+	{
+		name: 'tiltRecenter',
+		type: 'action',
+		label: 'Recenter with tilt',
+		description: 'The screen also follows your head up or down, to watch reclined. Shortcut: hold the right stick.',
+		action: 'Tilt',
+	},
+	{
+		name: 'backToSeat',
+		type: 'action',
+		label: 'Back to my seat',
+		description: 'Move with the left stick, turn and go up or down with the right one. Shortcut: click the left stick.',
+		action: 'Go back',
 	},
 	{
 		name: 'resetControls',

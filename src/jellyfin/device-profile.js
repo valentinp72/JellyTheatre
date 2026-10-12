@@ -6,7 +6,8 @@
 //   file whose only problem is its container (typically H.264/HEVC in MKV) is
 //   remuxed with the video stream copied, not re-encoded;
 // - unsupported audio (DTS, TrueHD…) only triggers an audio transcode;
-// - text subtitles are delivered externally as WebVTT and never burned in.
+// - subtitles are never burned in: text ones are delivered as WebVTT, PGS
+//   (Blu-ray) image ones as-is and rendered by the app (libpgs).
 
 const MBPS = 1_000_000;
 
@@ -136,8 +137,117 @@ export function buildDeviceProfile() {
 		SubtitleProfiles: [
 			// Text subtitles are converted to WebVTT by the server (cheap) and rendered by us.
 			{ Format: 'vtt', Method: 'External' },
-			// Image subtitles (pgssub, dvdsub…) are deliberately not listed: they would
+			// PGS image subtitles are sent as-is and rendered by libpgs.
+			{ Format: 'pgssub', Method: 'External' },
+			// Other image subtitles (dvdsub…) are deliberately not listed: they would
 			// force a burn-in, i.e. a full video transcode.
 		],
 	};
+}
+
+const VIDEO_CODECS = { h264: 'h264', avc: 'h264', hevc: 'hevc', h265: 'hevc', av1: 'av1', vp9: 'vp9', vp8: 'vp8' };
+const AUDIO_CODECS = { aac: 'aac', mp3: 'mp3', opus: 'opus', vorbis: 'vorbis', flac: 'flac', ac3: 'ac3', eac3: 'eac3', alac: 'alac' };
+
+function defaultStream(mediaSource, type, defaultIndex) {
+	const streams = (mediaSource?.MediaStreams ?? []).filter((stream) => stream.Type === type);
+	return streams.find((stream) => stream.Index === defaultIndex) ?? streams.find((stream) => stream.IsDefault) ?? streams[0];
+}
+
+/**
+ * Estimates, without asking the server, how a media source would play here:
+ * 'direct' (file as-is), 'remux' (video copied; container and/or audio
+ * converted) or 'transcode' (video re-encoded). The details page asks the
+ * server for the exact decision.
+ * @returns {{ mode: 'direct' | 'remux' | 'transcode', reasons: string[] } | null}
+ */
+export function estimatePlayback(mediaSource) {
+	const video = defaultStream(mediaSource, 'Video');
+	if (!video) return null;
+	const caps = getCapabilities();
+	const reasons = [];
+
+	const videoCodec = VIDEO_CODECS[video.Codec?.toLowerCase()];
+	const tenBit = (video.BitDepth ?? 8) > 8;
+	const videoOk = videoCodec !== undefined && caps.videoCodecs[videoCodec]
+		&& !(tenBit && videoCodec === 'hevc' && !caps.videoCodecs.hevc10)
+		&& !(tenBit && videoCodec === 'av1' && !caps.videoCodecs.av1_10)
+		&& !(tenBit && videoCodec === 'h264');
+	if (!videoOk) return { mode: 'transcode', reasons: [`${video.Codec?.toUpperCase() ?? 'video'}${tenBit ? ' 10-bit' : ''} video`] };
+
+	const audio = defaultStream(mediaSource, 'Audio', mediaSource.DefaultAudioStreamIndex);
+	const audioCodec = AUDIO_CODECS[audio?.Codec?.toLowerCase()];
+	if (audio && !(audioCodec && caps.audioCodecs[audioCodec])) reasons.push(`${audio.Codec?.toUpperCase()} audio`);
+
+	const containers = (mediaSource.Container ?? '').toLowerCase().split(',');
+	const containerOk = containers.some((c) => ['mp4', 'm4v', 'mov', 'webm'].includes(c) || (c === 'mkv' && caps.mkv));
+	if (!containerOk) reasons.push(`${containers[0].toUpperCase() || 'unknown'} container`);
+
+	return { mode: reasons.length ? 'remux' : 'direct', reasons };
+}
+
+const HDR_LABELS = { HDR10: 'HDR10', HDR10Plus: 'HDR10+', HLG: 'HLG', DOVI: 'Dolby Vision', DOVIWithHDR10: 'Dolby Vision', DOVIWithHLG: 'Dolby Vision', DOVIWithSDR: 'Dolby Vision' };
+const AUDIO_NAMES = { aac: 'AAC', mp3: 'MP3', opus: 'Opus', vorbis: 'Vorbis', flac: 'FLAC', ac3: 'Dolby Digital', eac3: 'Dolby Digital+', truehd: 'TrueHD', dts: 'DTS', alac: 'ALAC' };
+
+function resolutionLabel(width, height) {
+	if (!width) return '';
+	if (width >= 3800 || height >= 2100) return '4K';
+	if (width >= 2500 || height >= 1400) return '1440p';
+	if (width >= 1900 || height >= 1000) return '1080p';
+	if (width >= 1260 || height >= 700) return '720p';
+	return 'SD';
+}
+
+function channelsLabel(channels) {
+	if (!channels) return '';
+	if (channels === 1) return 'mono';
+	if (channels === 2) return 'stereo';
+	return `${channels - 1}.1`;
+}
+
+/** Human-readable quality of a media source (for badges and the details page). */
+export function describeMedia(mediaSource) {
+	const video = defaultStream(mediaSource, 'Video');
+	if (!video) return null;
+	const audio = defaultStream(mediaSource, 'Audio', mediaSource.DefaultAudioStreamIndex);
+	const audioCount = (mediaSource.MediaStreams ?? []).filter((s) => s.Type === 'Audio').length;
+	const subtitles = (mediaSource.MediaStreams ?? []).filter((s) => s.Type === 'Subtitle');
+	const resolution = resolutionLabel(video.Width, video.Height);
+	const hdr = HDR_LABELS[video.VideoRangeType] ?? null;
+	const bitrate = mediaSource.Bitrate ?? video.BitRate;
+	const audioName = audio ? AUDIO_NAMES[audio.Codec?.toLowerCase()] ?? audio.Codec?.toUpperCase() : '';
+	return {
+		badge: [resolution, hdr && (hdr.startsWith('Dolby') ? 'DV' : 'HDR')].filter(Boolean).join(' '),
+		video: [
+			resolution,
+			video.Codec?.toUpperCase(),
+			(video.BitDepth ?? 8) > 8 ? `${video.BitDepth}-bit` : '',
+			hdr,
+			bitrate ? `${Math.round(bitrate / 1_000_000)} Mbps` : '',
+		].filter(Boolean).join(' · '),
+		audio: audio ? [
+			audio.Language?.toUpperCase(),
+			audioName,
+			channelsLabel(audio.Channels),
+			audioCount > 1 ? `(+${audioCount - 1} more)` : '',
+		].filter(Boolean).join(' · ') : 'No audio',
+		subtitles: subtitles.length
+			? `${subtitles.filter((s) => s.IsTextSubtitleStream).length} text, ${subtitles.filter((s) => !s.IsTextSubtitleStream).length} image`
+			: 'None',
+	};
+}
+
+/** Readable text for Jellyfin's TranscodeReasons values. */
+export function describeTranscodeReason(reason) {
+	const known = {
+		ContainerNotSupported: 'container not supported',
+		AudioCodecNotSupported: 'audio codec not supported',
+		VideoCodecNotSupported: 'video codec not supported',
+		VideoBitDepthNotSupported: 'video bit depth not supported',
+		VideoRangeTypeNotSupported: 'HDR format not supported',
+		SubtitleCodecNotSupported: 'subtitles would be burned in',
+		ContainerBitrateExceedsLimit: 'bitrate above the limit',
+		VideoBitrateNotSupported: 'video bitrate above the limit',
+		AudioChannelsNotSupported: 'too many audio channels',
+	};
+	return known[reason] ?? reason.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
 }

@@ -12,6 +12,9 @@
 import * as THREE from 'three';
 import { createHoleMaterial, layersAvailable, poseRelativeTo, quadSize, setBehindLayer } from '../xr/layers.js';
 
+const SAMPLE_INTERVAL_MS = 200;
+const IMAGE_SUBTITLE_INTERVAL_MS = 100;
+
 AFRAME.registerComponent('video-screen', {
 	schema: {
 		// Largest area the picture may use (meters).
@@ -30,12 +33,30 @@ AFRAME.registerComponent('video-screen', {
 
 		this.subtitles = document.createElement('a-entity');
 		this.el.appendChild(this.subtitles);
+		// PGS (image) subtitles: a transparent plane over the picture showing
+		// the canvas libpgs draws into.
+		this.imageSubtitles = new THREE.Mesh(
+			new THREE.PlaneGeometry(1, 1),
+			new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false, depthWrite: false }),
+		);
+		this.imageSubtitles.position.z = 0.015;
+		this.imageSubtitles.visible = false;
+		this.el.object3D.add(this.imageSubtitles);
+		this.lastImageSubtitleUpdate = 0;
 		this.texture = null;
 		this.video = null;
 		this.player = null;
 		this.layer = null;
 		this.size = { width: 0, height: 0 };
 		this.fit(16 / 9);
+
+		// Average color of the picture, for lighting the room (`screen-color` event).
+		this.sampler = document.createElement('canvas');
+		this.sampler.width = 16;
+		this.sampler.height = 9;
+		this.samplerContext = this.sampler.getContext('2d', { willReadFrequently: true });
+		this.lastSample = 0;
+		this.samplingBroken = false;
 
 		this.onEnterVr = () => this.refresh();
 		this.onExitVr = () => {
@@ -64,6 +85,36 @@ AFRAME.registerComponent('video-screen', {
 		player.addEventListener('subtitle', (event) => {
 			this.subtitles.setAttribute('ui-text', 'value', event.detail.text);
 		});
+		player.addEventListener('image-subtitle', (event) => this.setImageSubtitles(event.detail.canvas));
+	},
+
+	setImageSubtitles(canvas) {
+		this.imageSubtitleCanvas = canvas;
+		this.imageSubtitles.visible = Boolean(canvas);
+		this.updateImageSubtitleTexture();
+	},
+
+	/**
+	 * (Re)creates the subtitle texture when the canvas changes size: libpgs
+	 * resizes it once the subtitle file is loaded, and a texture's storage
+	 * can't grow.
+	 */
+	updateImageSubtitleTexture() {
+		const canvas = this.imageSubtitleCanvas;
+		const material = this.imageSubtitles.material;
+		const size = canvas ? `${canvas.width}x${canvas.height}` : null;
+		if (size === this.imageSubtitleTextureSize) {
+			if (material.map) material.map.needsUpdate = true;
+			return;
+		}
+		this.imageSubtitleTextureSize = size;
+		material.map?.dispose();
+		material.map = null;
+		if (canvas) {
+			material.map = new THREE.CanvasTexture(canvas);
+			material.map.colorSpace = THREE.SRGBColorSpace;
+		}
+		material.needsUpdate = true;
 	},
 
 	/** Chooses idle / texture / compositor layer for the current state. */
@@ -126,6 +177,7 @@ AFRAME.registerComponent('video-screen', {
 		}
 		this.size = { width, height };
 		this.mesh.scale.set(width, height, 1);
+		this.imageSubtitles.scale.set(width, height, 1);
 		if (this.layer) Object.assign(this.layer, quadSize(width, height));
 
 		// Subtitles sit inside the bottom of the picture, sized relative to it.
@@ -145,6 +197,54 @@ AFRAME.registerComponent('video-screen', {
 	update() {
 		this.fit(this.size.width ? this.size.width / this.size.height : 16 / 9);
 		this.updateLayerTransform();
+	},
+
+	tick(time) {
+		// The rig can move (walking, recentering): keep the layer on the screen.
+		this.updateLayerTransform();
+		if (this.imageSubtitleCanvas && time - this.lastImageSubtitleUpdate > IMAGE_SUBTITLE_INTERVAL_MS) {
+			// libpgs redraws its canvas when the subtitle changes: re-upload it.
+			this.lastImageSubtitleUpdate = time;
+			this.updateImageSubtitleTexture();
+		}
+		if (time - this.lastSample > SAMPLE_INTERVAL_MS) {
+			this.lastSample = time;
+			this.sampleColor();
+		}
+	},
+
+	/** Emits the picture's average color and brightness on the scene. */
+	sampleColor() {
+		const showing = this.player?.isActive && this.video.readyState >= 2 && !this.samplingBroken;
+		if (!showing) {
+			if (this.sampling) {
+				this.sampling = false;
+				this.el.sceneEl.emit('screen-color', null);
+			}
+			return;
+		}
+		try {
+			this.samplerContext.drawImage(this.video, 0, 0, 16, 9);
+			const data = this.samplerContext.getImageData(0, 0, 16, 9).data;
+			let r = 0;
+			let g = 0;
+			let b = 0;
+			for (let i = 0; i < data.length; i += 4) {
+				r += data[i];
+				g += data[i + 1];
+				b += data[i + 2];
+			}
+			const scale = 1 / ((data.length / 4) * 255);
+			// Pixel values are sRGB: convert so the light gets the color we see.
+			const color = new THREE.Color().setRGB(r * scale, g * scale, b * scale, THREE.SRGBColorSpace);
+			const luminance = 0.2126 * color.r + 0.7152 * color.g + 0.0722 * color.b;
+			this.sampling = true;
+			this.el.sceneEl.emit('screen-color', { color, luminance });
+		} catch (error) {
+			// A cross-origin video without CORS headers can't be read: no room lighting.
+			console.warn('[screen] cannot sample the video color', error);
+			this.samplingBroken = true;
+		}
 	},
 
 	remove() {

@@ -21,6 +21,7 @@
     "aframe": "^1.8.0",
     "axios": "^1.20.0",
     "hls.js": "^1.7.3",
+    "libpgs": "^0.9.0",
     "troika-three-text": "^0.52.5"
   },
   "devDependencies": {
