@@ -1,1 +1,4 @@
-www/secrets.js
+node_modules/
+dist/
+dev-dist/
+*.local

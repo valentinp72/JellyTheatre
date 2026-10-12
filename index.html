@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="description" content="JellyTheatre: a VR movie theatre for your Jellyfin library.">
+		<meta name="theme-color" content="#0b0710">
+		<link rel="icon" href="/icon.svg" type="image/svg+xml">
+		<link rel="apple-touch-icon" href="/icon-192.png">
+		<title>JellyTheatre</title>
+		<script type="module" src="/src/main.js"></script>
+	</head>
+	<body>
+		<div id="lobby" class="lobby">
+			<main class="lobby-card">
+				<header class="lobby-header">
+					<img src="/icon.svg" alt="" width="48" height="48">
+					<div>
+						<h1>JellyTheatre</h1>
+						<p class="muted">Your Jellyfin library, on the big screen.</p>
+					</div>
+				</header>
+
+				<p id="lobby-error" class="error" role="alert" hidden></p>
+
+				<!-- Step 1: server -->
+				<section data-step="server" hidden>
+					<form id="server-form">
+						<label for="server-url">Jellyfin server</label>
+						<input id="server-url" name="server" type="url" inputmode="url" autocomplete="url"
+							placeholder="https://jellyfin.example.com" required>
+						<button type="submit" class="primary">Connect</button>
+					</form>
+					<p id="server-insecure-hint" class="muted small" hidden>
+						This page is served over HTTPS, so your Jellyfin server must be reachable over HTTPS too.
+					</p>
+				</section>
+
+				<!-- Step 2: login -->
+				<section data-step="login" hidden>
+					<p class="muted">Server: <strong data-bind="serverName"></strong>
+						<button type="button" class="link" data-action="change-server">change</button></p>
+
+					<div id="quick-connect" class="quick-connect" hidden>
+						<h2>Quick Connect</h2>
+						<p class="muted small">In Jellyfin on another device, open <em>Profile → Quick Connect</em> and enter:</p>
+						<p id="qc-code" class="qc-code" aria-live="polite">······</p>
+						<p id="qc-status" class="muted small">Requesting a code…</p>
+					</div>
+
+					<details id="password-login">
+						<summary>Sign in with a password</summary>
+						<form id="password-form">
+							<label for="username">Username</label>
+							<input id="username" name="username" autocomplete="username" required>
+							<label for="password">Password</label>
+							<input id="password" name="password" type="password" autocomplete="current-password">
+							<button type="submit" class="primary">Sign in</button>
+						</form>
+					</details>
+				</section>
+
+				<!-- Step 3: signed in -->
+				<section data-step="ready" hidden>
+					<p>Signed in as <strong data-bind="userName"></strong> on <strong data-bind="serverName"></strong>.</p>
+					<button type="button" class="primary big" data-action="enter">Enter the theatre</button>
+					<p id="xr-hint" class="muted small"></p>
+					<button type="button" class="link" data-action="logout">Sign out</button>
+				</section>
+
+				<section data-step="loading">
+					<p class="muted">Loading…</p>
+				</section>
+			</main>
+			<footer class="muted small">JellyTheatre v<span data-bind="version"></span></footer>
+		</div>
+
+		<button id="back-to-lobby" class="back-to-lobby" type="button" hidden>← Lobby</button>
+
+		<!-- Instantiated by src/main.js once every A-Frame component is registered. -->
+		<template id="scene-template">
+			<a-scene
+				renderer="antialias: true; highRefreshRate: true; colorManagement: true"
+				xr-mode-ui="enabled: false"
+				loading-screen="dotsColor: #aa5cc3; backgroundColor: #0b0710"
+				background="color: #0b0710">
+
+				<a-entity id="rig" position="0 0 0">
+					<a-entity id="camera" camera position="0 1.6 0" look-controls wasd-controls="enabled: false"></a-entity>
+					<a-entity id="left-hand" laser-controls="hand: left" raycaster="objects: .clickable; far: 50" line="color: #aa5cc3; opacity: 0.6"></a-entity>
+					<a-entity id="right-hand" laser-controls="hand: right" raycaster="objects: .clickable; far: 50" line="color: #00a4dc; opacity: 0.6"></a-entity>
+				</a-entity>
+				<a-entity cursor="rayOrigin: mouse; fuse: false" raycaster="objects: .clickable; far: 50"></a-entity>
+
+				<a-entity id="environment" placeholder-room></a-entity>
+			</a-scene>
+		</template>
+	</body>
+</html>
