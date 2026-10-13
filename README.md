@@ -1,221 +1,139 @@
 # JellyTheatre
 
-A WebXR client for [Jellyfin](https://jellyfin.org): watch your movies and shows in
-a virtual movie theatre on a VR headset (primary target: **Meta Quest 3** via the
-Quest Browser). It is an installable PWA built with [A-Frame](https://aframe.io).
+**Your [Jellyfin](https://jellyfin.org) library on a giant screen, in VR.**
 
-## Screenshots
+JellyTheatre lets you watch your own films and shows on a Meta Quest 3 (or
+another WebXR headset). You pick a place to watch from: a movie theatre, a
+cosy home cinema, a space station, a cabin by a lake, or your own room. It
+runs in the headset's browser and installs like an app. There is nothing to
+sideload and nothing to add to your server.
+
+![Playing a film in the theatre](docs/screenshots/playing.png)
+
+## Features
+
+### Places to watch
 
 | | |
 |---|---|
-| ![Playing a film in the theatre](docs/screenshots/playing.png) | ![The library on the big screen](docs/screenshots/theatre-library.png) |
-| ![Browsing movies](docs/screenshots/library-movies.png) | ![A film's details, with its playback check](docs/screenshots/details.png) |
-| ![Home cinema](docs/screenshots/environment-home.png) | ![Space station](docs/screenshots/environment-station.png) |
-| ![Lakeside cabin](docs/screenshots/environment-cabin.png) | ![Choosing an environment](docs/screenshots/environments.png) |
+| ![Movie theatre](docs/screenshots/environment-theater.png) | ![Home cinema](docs/screenshots/environment-home.png) |
+| **Movie theatre**: stadium seating, curtains, a projection booth and a giant screen. | **Home cinema**: recliners, a sofa, bookshelves and a starry ceiling. |
+| ![Space station](docs/screenshots/environment-station.png) | ![Lakeside cabin](docs/screenshots/environment-cabin.png) |
+| **Space station**: a glass observation deck over a slowly turning planet. | **Lakeside cabin**: a crackling fire, rain on the windows, a moonlit lake. |
 
-The screenshots (and the environment picker's pictures) are generated against
-a fake Jellyfin server with invented films: `npm run screenshots` (needs Chrome
-or Chromium, `CHROME_PATH` if not found, and ffmpeg for the film shots).
+You can also watch in a **Dark void** (only the screen), or in **My room**,
+which uses passthrough to put the screen in your real room, where you can move
+it. Room lighting follows the colours of the picture, so the room glows blue
+during a night scene and warm during a sunset. You can turn this off or change
+the room's brightness.
 
-## Goals
+![Choosing an environment](docs/screenshots/environments.png)
 
-- **Environments**: the video is shown inside a 3D environment. First one: a simple
-  movie theatre. More (and a passthrough "screen in your room" mode) later.
-- **Library sync**: show what you are currently watching (Continue Watching,
-  Next Up), resume where you left off, and report progress back so Jellyfin stays
-  the single source of truth for watch state.
-- **Subtitles**: text subtitles (SRT, ASS/SSA, WebVTT…) rendered in the scene.
-- **Avoid transcoding**: the target server is low-powered. Direct play whenever
-  the headset can decode the file, cheap remux/audio-only transcode otherwise,
-  full video transcode only as a last resort.
+### Your library, in sync
 
-## Approach: Jellyfin API, not the Jellyfin web UI
+- **Continue watching**, **Next up**, **New movies** and **New shows**, right
+  on the big screen.
+- **Browse everything**: all movies and shows, sorted and filtered (by genre,
+  or hiding what you've already watched). There are also favourites and a
+  search with an on-screen keyboard.
+- **Series pages** have season tabs, episodes with their watched status, and
+  "play next".
+- **Always in sync with Jellyfin**: playback resumes where you stopped (even if
+  you started on another device), and your progress, watched status and
+  favourites are saved back to your server.
 
-Embedding the Jellyfin web interface was considered and rejected: inside an
-immersive WebXR session only WebGL output is visible, and a cross-origin web page
-(iframe/DOM) cannot be rendered into a WebGL texture. JellyTheatre therefore talks
-to the Jellyfin REST API directly (through `@jellyfin/sdk`) and draws its own UI.
-
-JellyTheatre is **standalone**: everything (browsing, search, playback,
-settings) happens inside the headset. It is not a remote-control target for the
-official Jellyfin apps.
-
-### Jellyfin API usage
-
-| Need | Endpoint |
+| | |
 |---|---|
-| Login without a keyboard | Quick Connect: `POST /QuickConnect/Initiate`, poll `GET /QuickConnect/Connect`, then `POST /Users/AuthenticateWithQuickConnect`. Password login as fallback. |
-| Currently watching | `GET /UserItems/Resume`, `GET /Shows/NextUp` |
-| Browse | `GET /UserViews`, `GET /Items?ParentId=…` |
-| Resume position | `UserData.PlaybackPositionTicks` on items |
-| Stream selection | `POST /Items/{id}/PlaybackInfo` with a device profile describing the headset |
-| Progress sync | `POST /Sessions/Playing`, `/Sessions/Playing/Progress` (≈10 s + on pause/seek), `/Sessions/Playing/Stopped` |
-| Subtitles | `DeliveryUrl` of external subtitle streams (WebVTT) |
+| ![Browsing movies](docs/screenshots/library-movies.png) | ![A series](docs/screenshots/series.png) |
 
-### Playback strategy (minimising server load)
+### Gentle on your server
 
-The device profile sent to `PlaybackInfo` is built **at runtime** from what the
-browser reports (`MediaSource.isTypeSupported` / `canPlayType`), so we never
-claim support we don't have, and never under-claim what the Quest can decode
-(H.264, HEVC, VP9, AV1 in hardware). Preference order:
+JellyTheatre plays your files **as they are** whenever the headset can decode
+them (H.264, HEVC, VP9 and AV1 included). If the headset can't, the server
+only repackages the file or converts the audio, which is cheap. A full
+transcode happens only as a last resort. Each poster shows the quality
+(4K, HDR…) and whether the file will play directly. A film's page also shows
+the server's decision before you press Play.
 
-1. **Direct play**: the original file is streamed as-is. Zero server CPU.
-2. **Direct stream / remux**: the video is copied into HLS (e.g. H.264/HEVC in
-   MKV, which Chromium cannot demux), audio copied or transcoded (AC3/DTS → AAC
-   is cheap). Very low server CPU.
-3. **Full transcode**: only if the video codec itself is unsupported.
+![A film's details, with its playback check](docs/screenshots/details.png)
 
-Subtitles must never force a transcode: text subtitles are requested with
-`External` delivery (converted to WebVTT by the server, which is cheap) and
-rendered by the client. PGS image subtitles are also delivered as-is and drawn
-by the client (libpgs). Other image formats (VobSub/DVB) would require burn-in,
-so they are not offered.
+### Made for watching
 
-### Constraints
+- **Subtitles**: text subtitles (SRT, ASS, WebVTT…) and Blu-ray image
+  subtitles (PGS) are drawn by the headset, so the server never burns them in.
+  You can change their size, colour, outline or background box, and where they
+  appear (on or below the picture). You can also shift their timing when they
+  are out of sync.
+- **Skip intro / credits** button, or automatic skipping (when your server
+  detects intros and credits).
+- **Seek bar previews** (thumbnails) and **chapter marks**.
+- **Up next**: when the credits start, the next episode is offered with a
+  countdown. You can cancel it in one click or turn autoplay off.
+- **Audio and subtitle track menus**, and volume up to 150 %.
+- **Crisp picture and menus**: on the Quest, the video and menus are drawn
+  directly by the headset at full resolution.
 
-- **HTTPS everywhere**: WebXR and service workers need a secure context, and an
-  HTTPS page cannot load media from an HTTP Jellyfin server. Your Jellyfin server
-  must be reachable over HTTPS (or everything on `localhost` during development).
-- Jellyfin sends permissive CORS headers by default, which is required to use the
-  video as a WebGL texture.
+| | |
+|---|---|
+| ![Seek bar preview](docs/screenshots/seek-preview.png) | ![Subtitle settings](docs/screenshots/subtitle-settings.png) |
 
-## Development
+### Comfortable in VR
 
-Requires Node ≥ 20.
+- **Teleport** instead of walking (no motion sickness), with snapping to
+  seats, plus **snap turn**.
+- **Recenter** with the Quest's own button. If you're reclined, the screen
+  stays in front of you.
+- **Adjustable eye height**, if your seat feels too low or too high.
+- The **library, controls and settings panels can be grabbed and moved**
+  wherever you like.
 
-```sh
-npm install
-npm run dev        # http://localhost:5173
-npm run dev:https  # self-signed HTTPS, to open from the headset over the LAN
-npm run build      # production build in dist/
-```
+## Getting started
 
-### Testing on the Quest 3
+1. Your Jellyfin server must be reachable over **HTTPS** (browsers don't allow
+   a secure page to load video from a plain HTTP server, and VR requires a
+   secure page).
+2. On the headset, open **https://valentinp72.github.io/JellyTheatre/** in the
+   Quest Browser. To install it as an app, use the browser's menu.
+3. Enter your server address and sign in. **Quick Connect** is easiest: enter
+   the code shown in JellyTheatre in another Jellyfin app (phone, web), with
+   no typing in VR. Username and password also work.
+4. Press **Enter VR**, and pick a film.
 
-WebXR (and the PWA service worker) only work in a **secure context**: a page
-served over HTTPS, or from `localhost`. A page opened over plain HTTP on a LAN
-address (`http://192.168.x.x`) can't enter VR, so the dev server must use HTTPS:
+### Controls
 
-```sh
-npm run dev:https       # dev server, live reload
-npm run build && npm run preview:https   # or: test the production build (PWA included)
-```
+| | |
+|---|---|
+| Trigger | Point and click |
+| A / X | Play / pause |
+| B / Y | Show / hide the controls |
+| Grip (on a panel) | Grab and move it; push or pull the stick to move it farther or closer |
+| Stick forward, release | Teleport |
+| Right stick left / right | Snap turn |
+| Left stick click | Back to your seat |
+| Hold the Meta button | Recenter the view |
 
-Then open `https://<your-pc-ip>:5173` (dev) or `:4173` (preview) in the Quest
-Browser and accept the self-signed certificate warning. The Quest must be on the
-same network as your PC. Any static HTTPS server pointed at `dist/` works too.
-
-Optional alternative without certificates: with the headset connected over USB
-(developer mode), `adb reverse tcp:5173 tcp:5173` lets the Quest open
-`http://localhost:5173`, which counts as secure.
-
-On desktop, Meta's *Immersive Web Emulator* browser extension can emulate a Quest.
-
-## Testing and deployment
-
-```sh
-npm run build && npm test   # ~10 s end-to-end smoke test (headless Chrome, fake Jellyfin)
-```
-
-Every push to `main` is built, tested and published to GitHub Pages by
-`.github/workflows/pages.yml` (pull requests are built and tested only). The
-app is then served at `https://<owner>.github.io/<repository>/` and can be
-installed from there as a PWA. One-time setup: in the repository's
-*Settings → Pages*, set *Source* to *GitHub Actions*.
-
-To build for another sub-path: `BASE_PATH=/some/path/ npm run build`.
-
-## Project layout
-
-```
-index.html            Single page: 2D lobby overlay + A-Frame scene
-src/
-  main.js             Entry point, wires lobby, scene and app state
-  jellyfin/           API client, auth (Quick Connect), playback, reporting, library
-  player/             Player (direct / HLS), screen component, controller input
-  ui/                 In-VR UI components (panels, buttons, poster grid, seek bar)
-  environments/       Environment registry + environments (theater, …)
-  lobby/              2D (non-VR) lobby: server, login, enter VR
-public/               Static assets (icons…)
-```
+Settings open from the library's header, or from the gear on the controls
+during a film. They are grouped in tabs: Playback, Subtitles, Display and
+View.
 
 ## Roadmap
 
-- [x] **0. Docs**: this README and `CLAUDE.md`.
-- [x] **1. Scaffold**: Vite + A-Frame + PWA, HTTPS / adb dev workflow, empty
-      scene running on the Quest.
-- [x] **2. Auth & lobby**: server URL, Quick Connect + password login, session
-      persisted in `localStorage`, usable without a headset.
-- [x] **3. Theatre & player**: procedural theatre (instanced seats, dimming
-      house lights), "Now showing" panel (Continue watching / Next up / Recently
-      added), PlaybackInfo with a runtime device profile → direct play or HLS
-      remux → video texture, controls (play/pause, seek bar, −10 s / +30 s,
-      volume, audio and subtitle menus, playback mode badge), text subtitles
-      rendered on the screen, progress reporting (start / progress / stopped).
-- [x] **4. Library browsing**
-  - [x] Tabs: Continue watching, Next up, New movies, New shows, Movies and
-        Shows (whole collection, sortable, paged), Search (on-screen keyboard
-        or physical keyboard).
-  - [x] Details view (Resume / Play from start), series view (seasons,
-        episodes with watched status, play next).
-  - [x] Mark watched / unwatched, favourites (+ Favourites tab), genre and
-        unwatched filters.
-  - [x] "Up next" prompt when the credits start (needs media segments on the
-        server) or at the end: 10 s auto-play countdown, one-click Cancel or
-        "Turn off auto-play". Media versions picker.
-  - [x] In-VR settings page (Settings button in the library panel header).
-  - [x] Season tabs with short labels (S01, Specials) that scroll with ‹ ›.
-  - [x] Library shown on the cinema screen (or close to the seat, setting).
-  - [x] Compact icon controls panel, movable with the grip button.
-- [x] **Library as a compositor layer** in VR (crisp text), with in-scene
-      fallback (setting). Volume through Web Audio (up to 150 %).
-- [x] **Rendering**: 72 Hz (3 × 24 fps film cadence), optional 1.25× resolution
-      without foveation for sharper menus; hls.js retries and recovery for slow
-      remux starts.
-- [x] **WebXR media layer**: in VR on Quest, the video is a compositor layer
-      behind the scene (much sharper), with a texture fallback elsewhere.
-- [x] **5. Polish**
-  - [x] View: teleport (push a stick forward to aim, release to jump; snaps
-        to theatre seats), snap turn (right stick), recenter that compensates
-        automatically when reclined (on the headset's own recenter: hold the
-        Meta button), back to seat (left stick click). In passthrough, the screen can be grabbed and moved.
-  - [x] Room brightness and screen light settings. Settings on their own movable panel, reachable
-        anytime (library header, or the gear on the controls during a film).
-  - [x] Media quality and compatibility in menus: resolution / HDR badges and
-        a direct play / remux / transcode indicator on posters; full details
-        and the server's decision (with reasons) on the details page.
-  - [x] Room lighting that follows the colours on screen.
-  - [x] Environment kit (src/environments/kit/): reusable textures,
-        geometry, merged static builder, instanced seating and lighting.
-  - [x] Theatre rebuilt with the kit: stadium seating in three blocks, lit
-        aisle steps, acoustic wall bays with sconces and surround speakers,
-        stage, proscenium and folded curtains, exit doors, lit ceiling,
-        projection booth with a beam that takes the picture's colour.
-  - [x] Home cinema (recliners, sofa on a riser, star ceiling, bookshelves),
-        space station (observation deck over a turning planet) and lakeside
-        cabin (fireplace with a real fire, rain on the windows, moonlit lake).
-  - [x] Environment picker: illustrated cards in Settings.
-  - [x] Environments: theatre, dark void, passthrough ("My room", an
-        immersive-ar session with the screen in your real room).
-  - [x] Image subtitles (PGS) rendered client-side (libpgs), never burned in.
+Ideas for future versions:
 
-- [x] **6. Watching comfort**
-  - [x] Skip intro / recap / credits button (Jellyfin media segments), or
-        automatic skipping (setting).
-  - [x] Subtitle settings: size, colour, outline or dark box, on or below the
-        picture, timing offset (also for PGS).
-  - [x] Seek bar previews (Jellyfin trickplay thumbnails) and chapter marks.
-  - [x] Settings panel in tabs (Playback, Subtitles, Display, View).
+- **3D films**: play side-by-side and top-bottom 3D files in true stereo.
+- **Spatial audio and room acoustics**: sound that comes from the screen, with
+  a reverb that matches the room (a big theatre, a small home cinema, a cosy
+  cabin).
+- **Hand tracking**: point and pinch instead of using controllers, including
+  gestures for teleport and recenter.
 
-### Future ideas
+Suggestions are welcome in the issues.
 
-- **3D films**: play side-by-side and top-bottom 3D files in true stereo
-  (Jellyfin knows the format; the Quest's media layer can display stereo
-  layouts natively).
-- **Spatial audio and room acoustics**: sound coming from the screen, with a
-  reverb matching the environment (big theatre, small home cinema, cosy cabin).
-- **Hand tracking**: point and pinch instead of controllers, including
-  teleport and recenter gestures.
+## For developers
+
+Architecture, how Jellyfin is used, the playback strategy, development setup,
+testing on the Quest and deployment are in
+[docs/TECHNICAL.md](docs/TECHNICAL.md).
 
 ## License
 

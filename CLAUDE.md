@@ -1,8 +1,11 @@
 # CLAUDE.md
 
-Guidance for working on JellyTheatre. Read `README.md` first: it holds the
-architecture, the Jellyfin API mapping and the roadmap. Keep the roadmap
-checkboxes up to date when a step is finished.
+Guidance for working on JellyTheatre. Read `docs/TECHNICAL.md` first: it
+holds the architecture, the Jellyfin API mapping, the playback strategy and
+the development history. `README.md` is for users (features, getting started,
+controls, roadmap of next features): keep it up to date when a user-visible
+feature changes, and move a roadmap item into the technical history once it
+ships.
 
 ## Commands
 
