@@ -48,6 +48,9 @@ const movies = FILMS.map(([name, year, colors, genres], i) => ({
 	ImageTags: { Primary: 'poster' },
 	MediaSourceCount: 1,
 	MediaSources: [{ Id: `film-${slug(name)}`, Name: 'Main', ...(i % 3 === 0 ? SOURCES.uhd : SOURCES.hd) }],
+	// Chapters and trickplay match the 40 s test clip.
+	Chapters: [['Opening', 0], ['Departure', 10], ['The glass field', 20], ['Landing', 30]].map(([Name, s]) => ({ Name, StartPositionTicks: s * TICKS })),
+	Trickplay: { [`film-${slug(name)}`]: { 320: { Width: 320, Height: 180, TileWidth: 5, TileHeight: 5, ThumbnailCount: 40, Interval: 1000, Bandwidth: 0 } } },
 	UserData: i === 1 ? { PlaybackPositionTicks: 41 * 60 * TICKS, PlayedPercentage: 38 } : i === 4 ? { PlaybackPositionTicks: 12 * 60 * TICKS, PlayedPercentage: 12 } : i % 4 === 2 ? { Played: true } : {},
 	colors,
 }));
@@ -96,6 +99,19 @@ function posterSvg(item) {
 	</svg>`;
 }
 
+/** A trickplay tile: 5 × 5 numbered frames (320 × 180 each). */
+function trickplayTile(tile) {
+	const frames = [];
+	for (let i = 0; i < 25; i++) {
+		const n = tile * 25 + i;
+		const x = (i % 5) * 320;
+		const y = Math.floor(i / 5) * 180;
+		const hue = (n * 37) % 360;
+		frames.push(`<rect x="${x}" y="${y}" width="320" height="180" fill="hsl(${hue}, 55%, 35%)"/><circle cx="${x + 160}" cy="${y + 90}" r="${40 + (n % 5) * 8}" fill="hsl(${(hue + 160) % 360}, 70%, 60%)"/><text x="${x + 16}" y="${y + 166}" font-family="sans-serif" font-size="28" fill="#fff">0:${String(n).padStart(2, '0')}</text>`);
+	}
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">${frames.join('')}</svg>`;
+}
+
 /**
  * Starts the fake server.
  * @param {{ port?: number, mediaDir: string }} options mediaDir holds test.mp4 / test.vtt
@@ -134,6 +150,13 @@ export function startMockJellyfin({ port = 8096, mediaDir }) {
 				return send(200, posterSvg(allItems.find((i) => i.Id === id) ?? series), 'image/svg+xml');
 			}
 			if (/\/stream\.\w+$/.test(p)) return file('test.mp4', 'video/mp4');
+			if (p.includes('/Trickplay/')) return send(200, trickplayTile(Number(p.split('/').pop().split('.')[0])), 'image/svg+xml');
+			if (p.startsWith('/MediaSegments/')) {
+				return send(200, { Items: [
+					{ Type: 'Intro', StartTicks: 2 * TICKS, EndTicks: 15 * TICKS },
+					{ Type: 'Outro', StartTicks: 32 * TICKS, EndTicks: 40 * TICKS },
+				] });
+			}
 			if (p.endsWith('.vtt')) return file('test.vtt', 'text/vtt');
 			if (/^\/Items\/[^/]+\/PlaybackInfo$/.test(p)) {
 				const id = p.split('/')[2];
@@ -143,7 +166,6 @@ export function startMockJellyfin({ port = 8096, mediaDir }) {
 				return send(200, { MediaSources: [source], PlaySessionId: 'screenshots' });
 			}
 			if (p.startsWith('/Sessions/') || p.startsWith('/UserPlayedItems/') || p.startsWith('/UserFavoriteItems/') || p === '/Videos/ActiveEncodings') return send(204);
-			if (p.startsWith('/MediaSegments/')) return send(200, { Items: [] });
 			switch (p) {
 				case '/System/Info/Public': return send(200, { ServerName: 'Home', Version: '10.11.0', ProductName: 'Jellyfin Server', Id: 'fake', StartupWizardCompleted: true });
 				case '/QuickConnect/Enabled': return send(200, true);

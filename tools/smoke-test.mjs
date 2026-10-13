@@ -18,14 +18,14 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MOCK_PORT = 8096;
 const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'void'];
 
-/** A 3-second clip and its subtitles; false without ffmpeg. */
+/** A 12-second clip and its subtitles; false without ffmpeg. */
 function tinyClip(dir) {
 	const result = spawnSync('ffmpeg', [
 		'-hide_banner', '-loglevel', 'error', '-y',
 		'-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=24',
-		'-t', '3', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-movflags', '+faststart', path.join(dir, 'test.mp4'),
+		'-t', '12', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-movflags', '+faststart', path.join(dir, 'test.mp4'),
 	]);
-	fs.writeFileSync(path.join(dir, 'test.vtt'), 'WEBVTT\n\n00:00:00.000 --> 00:00:03.000\nTest.\n');
+	fs.writeFileSync(path.join(dir, 'test.vtt'), 'WEBVTT\n\n00:00:00.000 --> 00:00:12.000\nTest.\n');
 	return result.status === 0;
 }
 
@@ -113,6 +113,15 @@ async function main() {
 				player.selectSubtitle(player.source.subtitles[0].index);
 			});
 			await expect('subtitles show', () => document.querySelector('#screen').components['video-screen'].subtitles.getAttribute('ui-text').value === 'Test.');
+			await expect('chapters marked on the seek bar', () => document.querySelector('#player-controls').components['player-controls'].ticks.children.length === 3);
+			// The fake film has an intro from 2 to 15 s (skipping it ends this short clip).
+			await page.evaluate(() => { document.querySelector('video').currentTime = 2.5; });
+			await expect('"Skip intro" offered during the intro', () => {
+				const button = document.querySelector('#screen').components['video-screen'].skipButton;
+				return button.classList.contains('clickable') && button.getAttribute('ui-button').label === 'Skip intro';
+			});
+			await page.evaluate(() => document.querySelector('#screen').components['video-screen'].skipButton.emit('click'));
+			await expect('skipping jumps past the intro', () => document.querySelector('video').currentTime >= 3 || document.querySelector('video').ended);
 			await expect('back to the library when it ends', () => document.querySelector('#library-panel').object3D.visible, undefined, 8000);
 		} else {
 			console.log('  - playback skipped (no ffmpeg)');

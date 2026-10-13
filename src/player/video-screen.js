@@ -10,9 +10,14 @@
 // - Otherwise (desktop, no layers support): a regular WebGL video texture.
 
 import * as THREE from 'three';
+import { getSetting } from '../settings.js';
+import { entity, setInteractiveVisible } from '../ui/widgets.js';
 import { createHoleMaterial, layersAvailable, poseRelativeTo, quadSize, setBehindLayer } from '../xr/layers.js';
 
 const SAMPLE_INTERVAL_MS = 200;
+const SUBTITLE_SIZES = { small: 0.75, medium: 1, large: 1.3, xlarge: 1.65 };
+const SUBTITLE_COLORS = { white: '#ffffff', yellow: '#ffe066' };
+const SKIP_LABELS = { Intro: 'Skip intro', Recap: 'Skip recap', Preview: 'Skip preview', Commercial: 'Skip ad', Outro: 'Skip credits' };
 const IMAGE_SUBTITLE_INTERVAL_MS = 100;
 
 AFRAME.registerComponent('video-screen', {
@@ -35,6 +40,19 @@ AFRAME.registerComponent('video-screen', {
 
 		this.subtitles = document.createElement('a-entity');
 		this.el.appendChild(this.subtitles);
+		// "Dark box" subtitle style: a box behind the lines, fitted every frame.
+		this.subtitleBox = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.62, depthWrite: false }));
+		this.subtitleBox.visible = false;
+		this.subtitles.object3D.add(this.subtitleBox);
+		// "Skip intro / credits" button, in the corner of the picture.
+		this.skipButton = entity({ 'ui-button': { label: 'Skip intro' } });
+		this.skipButton.addEventListener('click', () => this.player?.skipSegment());
+		this.el.appendChild(this.skipButton);
+		setInteractiveVisible(this.skipButton, false);
+		this.onSettingChange = ({ detail }) => {
+			if (detail.name.startsWith('subtitle')) this.fit(this.size.width / this.size.height);
+		};
+		window.addEventListener('settingchange', this.onSettingChange);
 		// PGS (image) subtitles: a transparent plane over the picture showing
 		// the canvas libpgs draws into.
 		this.imageSubtitles = new THREE.Mesh(
@@ -88,6 +106,13 @@ AFRAME.registerComponent('video-screen', {
 			this.subtitles.setAttribute('ui-text', 'value', event.detail.text);
 		});
 		player.addEventListener('image-subtitle', (event) => this.setImageSubtitles(event.detail.canvas));
+		player.addEventListener('segment', ({ detail }) => {
+			const segment = detail.segment;
+			// An episode's credits are handled by the "Up next" prompt.
+			const show = Boolean(segment) && !(segment.type === 'Outro' && player.item?.Type === 'Episode');
+			if (show) this.skipButton.setAttribute('ui-button', 'label', SKIP_LABELS[segment.type] ?? 'Skip');
+			setInteractiveVisible(this.skipButton, show);
+		});
 	},
 
 	setImageSubtitles(canvas) {
@@ -182,18 +207,28 @@ AFRAME.registerComponent('video-screen', {
 		this.imageSubtitles.scale.set(width, height, 1);
 		if (this.layer) Object.assign(this.layer, quadSize(width, height));
 
-		// Subtitles sit inside the bottom of the picture, sized relative to it.
-		const fontSize = height * 0.052;
-		this.subtitles.setAttribute('position', `0 ${-height / 2 + height * 0.06} 0.02`);
+		// Subtitles: sized relative to the picture, styled by the settings.
+		const fontSize = height * 0.052 * (SUBTITLE_SIZES[getSetting('subtitleSize')] ?? 1);
+		const below = getSetting('subtitlePosition') === 'below';
+		const box = getSetting('subtitleStyle') === 'box';
+		this.subtitles.setAttribute('position', below ? `0 ${-height / 2 - fontSize * 0.5} 0.02` : `0 ${-height / 2 + height * 0.06} 0.02`);
 		this.subtitles.setAttribute('ui-text', {
 			fontSize,
 			maxWidth: width * 0.8,
 			align: 'center',
-			anchorY: 'bottom',
-			color: '#ffffff',
-			outlineWidth: fontSize * 0.08,
+			anchorY: below ? 'top' : 'bottom',
+			color: SUBTITLE_COLORS[getSetting('subtitleColor')] ?? '#ffffff',
+			outlineWidth: box ? 0 : fontSize * 0.08,
 			outlineColor: '#000000',
 		});
+		this.subtitleBoxPadding = fontSize * 0.35;
+		this.subtitleBox.material.visible = box;
+
+		// The skip button, bottom right of the picture.
+		const bw = height * 0.2;
+		const bh = height * 0.075;
+		this.skipButton.setAttribute('ui-button', { width: bw, height: bh, fontSize: height * 0.032 });
+		this.skipButton.setAttribute('position', `${width / 2 - bw / 2 - height * 0.04} ${-height / 2 + bh / 2 + height * 0.2} 0.03`);
 	},
 
 	update() {
@@ -204,6 +239,8 @@ AFRAME.registerComponent('video-screen', {
 	tick(time) {
 		// The rig can move (walking, recentering): keep the layer on the screen.
 		this.updateLayerTransform();
+		if (this.player?.isActive) this.player.updateSubtitle();
+		this.fitSubtitleBox();
 		if (this.imageSubtitleCanvas && time - this.lastImageSubtitleUpdate > IMAGE_SUBTITLE_INTERVAL_MS) {
 			// libpgs redraws its canvas when the subtitle changes: re-upload it.
 			this.lastImageSubtitleUpdate = time;
@@ -258,7 +295,21 @@ AFRAME.registerComponent('video-screen', {
 		}
 	},
 
+	/** Fits the "dark box" behind the current subtitle lines. */
+	fitSubtitleBox() {
+		const text = this.subtitles.components['ui-text']?.text;
+		const bounds = text?.textRenderInfo?.blockBounds;
+		const visible = Boolean(this.subtitleBox.material.visible && bounds && text.text);
+		this.subtitleBox.visible = visible;
+		if (!visible) return;
+		const [minX, minY, maxX, maxY] = bounds;
+		const pad = this.subtitleBoxPadding;
+		this.subtitleBox.scale.set(maxX - minX + 2 * pad, maxY - minY + pad, 1);
+		this.subtitleBox.position.set((minX + maxX) / 2, (minY + maxY) / 2, -0.004);
+	},
+
 	remove() {
+		window.removeEventListener('settingchange', this.onSettingChange);
 		this.destroyLayer();
 		this.texture?.dispose();
 		this.el.removeObject3D('mesh');

@@ -1,10 +1,11 @@
 // Settings, on their own panel (movable with the grip, like the controls).
-// Generated from SETTING_DEFINITIONS. Emits `close-request`.
+// Generated from SETTING_DEFINITIONS, one tab per category. Emits
+// `close-request`.
 
 import * as THREE from 'three';
 import { environments } from '../environments/index.js';
 import { environmentIcon } from '../environments/icons.js';
-import { getSetting, runSettingAction, setSetting, SETTING_DEFINITIONS } from '../settings.js';
+import { getSetting, runSettingAction, setSetting, SETTING_CATEGORIES, SETTING_DEFINITIONS } from '../settings.js';
 import { COLORS, entity, loadTexture, setInteractiveVisible } from './widgets.js';
 
 export const SETTINGS_WIDTH = 1.6;
@@ -27,22 +28,42 @@ AFRAME.registerComponent('settings-panel', {
 		this.back = entity({ position: `${RIGHT - 0.18 - 0.02 - 0.09} ${TOP - 0.07} 0.002`, 'ui-button': 'label: ‹ Back; width: 0.18; height: 0.065; fontSize: 0.026' });
 		this.back.addEventListener('click', () => this.showList());
 		this.el.append(background, handle, this.title, close, this.back);
-		// Two pages: the list of settings, and a picker (environments).
+		// Two pages: the list of settings (with tabs), and a picker (environments).
 		this.list = entity();
 		this.picker = entity();
 		this.el.append(this.list, this.picker);
 		this.pickerSetting = null;
 
-		// Two columns of settings.
+		// Tabs, one per category, each with its own group of rows.
+		this.category = SETTING_CATEGORIES[0].id;
+		this.tabs = {};
+		this.groups = {};
+		let tabX = LEFT;
+		for (const category of SETTING_CATEGORIES) {
+			const width = 0.07 + category.label.length * 0.017;
+			const tab = entity({ position: `${tabX + width / 2} ${TOP - 0.15} 0.002`, 'ui-button': { label: category.label, width, height: 0.062, fontSize: 0.026 } });
+			tab.addEventListener('click', () => this.showList(category.id));
+			this.tabs[category.id] = tab;
+			this.groups[category.id] = entity();
+			this.list.append(tab, this.groups[category.id]);
+			tabX += width + 0.02;
+		}
+
+		// Two columns of settings in each tab.
 		const valueW = 0.18;
 		const columnGap = 0.07;
 		const columnW = (RIGHT - LEFT - columnGap) / 2;
 		const textWidth = columnW - valueW - 0.03;
-		const perColumn = Math.ceil(SETTING_DEFINITIONS.length / 2);
-		this.rows = SETTING_DEFINITIONS.map((setting, i) => {
+		const indexInCategory = new Map();
+		this.rows = SETTING_DEFINITIONS.map((setting) => {
+			const siblings = SETTING_DEFINITIONS.filter((other) => other.category === setting.category);
+			const i = indexInCategory.get(setting.category) ?? 0;
+			indexInCategory.set(setting.category, i + 1);
+			const perColumn = Math.ceil(siblings.length / 2);
+			const group = this.groups[setting.category];
 			const column = Math.floor(i / perColumn);
 			const x = LEFT + column * (columnW + columnGap);
-			const y = TOP - 0.16 - (i % perColumn) * ROW_PITCH;
+			const y = TOP - 0.25 - (i % perColumn) * ROW_PITCH;
 			const label = entity({ position: `${x} ${y} 0.002`, 'ui-text': { value: setting.label, fontSize: 0.028, anchorX: 'left', anchorY: 'top', maxWidth: textWidth } });
 			const description = entity({
 				position: `${x} ${y - 0.038} 0.002`,
@@ -65,7 +86,7 @@ AFRAME.registerComponent('settings-panel', {
 				minus.addEventListener('click', () => step(-1));
 				plus.addEventListener('click', () => step(1));
 				value.append(minus, text, plus);
-				this.list.append(label, description, value);
+				group.append(label, description, value);
 				return { setting, value, text };
 			}
 			const value = entity({
@@ -85,7 +106,7 @@ AFRAME.registerComponent('settings-panel', {
 					setSetting(setting.name, !getSetting(setting.name));
 				}
 			});
-			this.list.append(label, description, value);
+			group.append(label, description, value);
 			return { setting, value };
 		});
 
@@ -98,18 +119,24 @@ AFRAME.registerComponent('settings-panel', {
 		window.removeEventListener('settingchange', this.onSettingChange);
 	},
 
-	setVisible(visible) {
+	/** @param {string} [category] tab to open (default: the last one shown) */
+	setVisible(visible, category) {
 		this.visible = visible;
 		setInteractiveVisible(this.el, visible);
-		if (visible) this.showList();
+		if (visible) this.showList(category);
 	},
 
-	showList() {
+	showList(category = this.category) {
+		this.category = category;
 		this.pickerSetting = null;
 		this.title.setAttribute('ui-text', 'value', 'Settings');
 		setInteractiveVisible(this.back, false);
 		setInteractiveVisible(this.picker, false);
 		setInteractiveVisible(this.list, this.visible);
+		for (const [id, group] of Object.entries(this.groups)) {
+			setInteractiveVisible(group, this.visible && id === category);
+			this.tabs[id].setAttribute('ui-button', 'active', id === category);
+		}
 		this.render();
 	},
 

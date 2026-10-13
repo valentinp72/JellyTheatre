@@ -160,6 +160,27 @@ async function main() {
 			await page.evaluate(() => document.querySelector('#player-controls').emit('activity'));
 			await wait(500);
 			await shot('playing');
+
+			// Pointing at the seek bar: the preview (a fake pointer, at 60 %).
+			await page.evaluate(() => {
+				const controls = document.querySelector('#player-controls').components['player-controls'];
+				const bar = controls.bar.object3D;
+				const point = new AFRAME.THREE.Vector3(0.6 * 0.52 - 0.26, 0, 0);
+				bar.localToWorld(point);
+				controls.pointers.add({ components: { raycaster: { getIntersection: () => ({ point: point.clone() }) } } });
+			});
+			await wait(1200);
+			await shot('seek-preview');
+			await page.evaluate(() => document.querySelector('#player-controls').components['player-controls'].pointers.clear());
+
+			// Subtitle settings, with the dark box style.
+			await page.evaluate(() => document.querySelector('#settings-panel').components['settings-panel'].setVisible(true, 'subtitles'));
+			await setting('subtitleStyle', 'box');
+			await look(0, -0.15);
+			await wait(800);
+			await shot('subtitle-settings');
+			await setting('subtitleStyle', 'outline');
+			await show('settings-panel', false);
 		}
 		for (const key of ENVIRONMENTS) {
 			await chooseEnvironment(key);

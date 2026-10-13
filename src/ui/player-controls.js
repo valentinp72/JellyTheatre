@@ -1,9 +1,12 @@
 // Lap-height control panel: title, seek bar, transport buttons, track menus.
 // Bound to a Player with `bind(player)`. Emits `stop-request` and `activity`.
 
+import * as THREE from 'three';
 import { describeItem } from '../jellyfin/library.js';
 import { truncate } from './text.js';
-import { COLORS, entity, setInteractiveVisible, whenLoaded } from './widgets.js';
+import { COLORS, entity, loadTexture, setInteractiveVisible, whenLoaded } from './widgets.js';
+
+const PREVIEW_WIDTH = 0.2;
 
 const WIDTH = 0.82;
 const HEIGHT = 0.25;
@@ -48,6 +51,22 @@ AFRAME.registerComponent('player-controls', {
 		this.current = entity({ position: `${-BAR_WIDTH / 2 - 0.015} ${barY} 0.002`, 'ui-text': 'fontSize: 0.017; anchorX: right' });
 		this.total = entity({ position: `${BAR_WIDTH / 2 + 0.015} ${barY} 0.002`, 'ui-text': 'fontSize: 0.017; anchorX: left' });
 		this.bar = entity({ position: `0 ${barY} 0.002`, 'ui-progress': `width: ${BAR_WIDTH}; height: 0.01; interactive: true` });
+		this.barY = barY;
+		// Chapter ticks on the bar, and a preview while pointing at it.
+		this.ticks = entity({ position: `0 ${barY} 0.004` });
+		this.preview = entity({ position: `0 ${barY + 0.09} 0.03` });
+		this.previewImage = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ color: '#ffffff' }));
+		this.previewImage.visible = false;
+		this.preview.object3D.add(this.previewImage);
+		this.previewLabel = entity({ 'ui-text': 'fontSize: 0.017; anchorY: top; align: center' });
+		this.previewBackground = entity({ position: '0 0 -0.002', 'ui-rect': `width: ${PREVIEW_WIDTH + 0.02}; height: 0.05; radius: 0.012; color: #000000; opacity: 0.8` });
+		this.preview.append(this.previewBackground, this.previewLabel);
+		this.preview.object3D.visible = false;
+		this.chapters = [];
+		this.trickplay = null;
+		this.pointers = new Set();
+		this.bar.addEventListener('raycaster-intersected', (event) => this.pointers.add(event.detail.el));
+		this.bar.addEventListener('raycaster-intersected-cleared', (event) => this.pointers.delete(event.detail.el));
 		this.bar.addEventListener('seek', (event) => {
 			this.player?.seek(event.detail.fraction * this.player.duration);
 			this.activity();
@@ -84,7 +103,7 @@ AFRAME.registerComponent('player-controls', {
 		this.menuEl = entity({ position: `0 ${top + 0.02} 0` });
 
 		this.el.append(this.background, this.handle, this.title, this.subtitle, this.mode, this.tooltip,
-			this.current, this.total, this.bar, this.buttonRow, this.menuEl);
+			this.current, this.total, this.bar, this.ticks, this.preview, this.buttonRow, this.menuEl);
 		// Pointing at the panel counts as activity (keeps it from auto-hiding).
 		this.el.addEventListener('mouseenter', () => this.activity());
 		this.el.addEventListener('tooltip', (event) => this.tooltip.setAttribute('ui-text', 'value', event.detail.text));
@@ -96,6 +115,81 @@ AFRAME.registerComponent('player-controls', {
 		this.player = player;
 		player.addEventListener('statechange', () => this.refresh());
 		player.addEventListener('timeupdate', () => this.refreshTime());
+		player.addEventListener('details', ({ detail }) => this.setDetails(detail));
+	},
+
+	/** Chapters (ticks on the bar) and trickplay thumbnails (preview). */
+	setDetails({ chapters, trickplay }) {
+		this.chapters = chapters;
+		this.trickplay = trickplay;
+		this.ticks.replaceChildren();
+		const duration = this.player?.duration;
+		if (!duration) return;
+		for (const chapter of chapters) {
+			if (chapter.start <= 0.5) continue;
+			const x = (chapter.start / duration - 0.5) * BAR_WIDTH;
+			this.ticks.appendChild(entity({ position: `${x} 0 0`, 'ui-rect': `width: 0.003; height: 0.022; radius: 0.001; color: ${COLORS.text}` }));
+		}
+	},
+
+	chapterAt(time) {
+		let current = null;
+		for (const chapter of this.chapters) {
+			if (chapter.start <= time) current = chapter;
+		}
+		return current;
+	},
+
+	/** While a pointer is on the seek bar: preview of that moment above it. */
+	tick() {
+		const player = this.player;
+		let fraction = null;
+		if (this.visible && player?.isActive) {
+			for (const pointer of this.pointers) {
+				const hit = pointer.components.raycaster?.getIntersection(this.bar);
+				if (!hit) continue;
+				const local = this.bar.object3D.worldToLocal(hit.point.clone());
+				fraction = THREE.MathUtils.clamp(local.x / BAR_WIDTH + 0.5, 0, 1);
+				break;
+			}
+		}
+		this.preview.object3D.visible = fraction !== null;
+		if (fraction === null) return;
+
+		const time = fraction * player.duration;
+		const x = THREE.MathUtils.clamp((fraction - 0.5) * BAR_WIDTH, -WIDTH / 2 + PREVIEW_WIDTH / 2 + 0.02, WIDTH / 2 - PREVIEW_WIDTH / 2 - 0.02);
+		this.preview.object3D.position.x = x;
+		const chapter = this.chapterAt(time);
+		const label = chapter?.name ? `${formatTime(time)} · ${truncate(chapter.name, 26)}` : formatTime(time);
+		const tp = this.trickplay;
+		let imageHeight = 0;
+		if (tp) {
+			imageHeight = PREVIEW_WIDTH * (tp.height / tp.width);
+			const index = Math.min(tp.count - 1, Math.floor(time / tp.interval));
+			const perTile = tp.columns * tp.rows;
+			const tile = Math.floor(index / perTile);
+			const within = index % perTile;
+			const url = tp.tileUrl(tile);
+			if (this.previewUrl !== url) {
+				this.previewUrl = url;
+				loadTexture(url).then((texture) => {
+					if (this.previewUrl !== url) return;
+					texture.repeat.set(1 / tp.columns, 1 / tp.rows);
+					this.previewImage.material.map = texture;
+					this.previewImage.material.needsUpdate = true;
+				}).catch(() => {});
+			}
+			const map = this.previewImage.material.map;
+			if (map) map.offset.set((within % tp.columns) / tp.columns, 1 - (Math.floor(within / tp.columns) + 1) / tp.rows);
+			this.previewImage.scale.set(PREVIEW_WIDTH, imageHeight, 1);
+			this.previewImage.position.set(0, imageHeight / 2 + 0.01, 0);
+		}
+		this.previewImage.visible = Boolean(tp && this.previewImage.material.map);
+		this.previewLabel.setAttribute('ui-text', 'value', label);
+		this.previewLabel.object3D.position.set(0, 0.002, 0.001);
+		const backgroundHeight = imageHeight + 0.05;
+		this.previewBackground.setAttribute('ui-rect', 'height', backgroundHeight);
+		this.previewBackground.object3D.position.y = backgroundHeight / 2 - 0.035;
 	},
 
 	changeVolume(delta) {
@@ -181,6 +275,7 @@ AFRAME.registerComponent('player-controls', {
 					active: track.index === this.player.subtitleIndex,
 					select: () => this.player.selectSubtitle(track.index),
 				})),
+				{ label: 'Subtitle settings…', active: false, select: () => this.el.emit('settings-request', { category: 'subtitles' }) },
 			];
 		}
 		options = options.slice(0, MENU_ROWS);

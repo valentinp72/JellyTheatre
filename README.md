@@ -199,6 +199,24 @@ public/               Static assets (icons…)
         immersive-ar session with the screen in your real room).
   - [x] Image subtitles (PGS) rendered client-side (libpgs), never burned in.
 
+- [x] **6. Watching comfort**
+  - [x] Skip intro / recap / credits button (Jellyfin media segments), or
+        automatic skipping (setting).
+  - [x] Subtitle settings: size, colour, outline or dark box, on or below the
+        picture, timing offset (also for PGS).
+  - [x] Seek bar previews (Jellyfin trickplay thumbnails) and chapter marks.
+  - [x] Settings panel in tabs (Playback, Subtitles, Display, View).
+
+### Future ideas
+
+- **3D films**: play side-by-side and top-bottom 3D files in true stereo
+  (Jellyfin knows the format; the Quest's media layer can display stereo
+  layouts natively).
+- **Spatial audio and room acoustics**: sound coming from the screen, with a
+  reverb matching the environment (big theatre, small home cinema, cosy cabin).
+- **Hand tracking**: point and pinch instead of controllers, including
+  teleport and recenter gestures.
+
 ## License
 
 See [LICENSE](LICENSE).

@@ -1,9 +1,13 @@
+import { chapters, trickplayInfo } from '../jellyfin/library.js';
 import { PlaybackReporter, resolvePlayback, TICKS_PER_SECOND } from '../jellyfin/playback.js';
+import { getSetting } from '../settings.js';
 import pgsWorkerUrl from 'libpgs/dist/libpgs.worker.js?url';
 
 const PROGRESS_INTERVAL_MS = 10_000;
 const MAX_HLS_RECOVERIES = 3;
 const MAX_VOLUME = 1.5;
+// Segments offered for skipping (Jellyfin media segment types).
+const SKIPPABLE = new Set(['Intro', 'Recap', 'Preview', 'Commercial', 'Outro']);
 const LOAD_POLICY = {
 	maxTimeToFirstByteMs: 30_000,
 	maxLoadTimeMs: 120_000,
@@ -22,6 +26,9 @@ const LOAD_POLICY = {
  *   canvas, or { canvas: null } when no image subtitle is shown
  * - `ended`: the item finished
  * - `outro`: the end credits started (needs media segments on the server)
+ * - `segment`: { detail: { segment } } entering a skippable segment (intro,
+ *   recap, preview, commercial, credits), or { segment: null } when leaving it
+ * - `details`: { detail: { chapters, trickplay } } extra info for the seek bar
  * - `error`: { detail: { error } }
  */
 export class Player extends EventTarget {
@@ -47,6 +54,12 @@ export class Player extends EventTarget {
 		this.loading = false;
 		this.outroStart = null;
 		this.outroReached = false;
+		this.segments = [];
+		this.segment = null;
+		this.skippedSegments = new Set();
+		this.chapters = [];
+		this.trickplay = null;
+		this.subtitleText = '';
 		this.sources = null;
 		// Volume goes through Web Audio: the Quest Browser ignores video.volume.
 		this.volume = 1;
@@ -65,6 +78,10 @@ export class Player extends EventTarget {
 				this.outroReached = true;
 				this.emit('outro', { item: this.item });
 			}
+			this.updateSegment();
+		});
+		window.addEventListener('settingchange', ({ detail }) => {
+			if (detail.name === 'subtitleOffset' && this.pgs) this.pgs.renderer.timeOffset = -detail.value;
 		});
 		v.addEventListener('ended', () => this.onEnded());
 		v.addEventListener('error', () => {
@@ -122,7 +139,8 @@ export class Player extends EventTarget {
 		this.item = item;
 		this.emit('statechange');
 		try {
-			const outroStart = this.sources?.outroStart(item.Id) ?? Promise.resolve(null);
+			const segments = this.sources?.segments(item.Id) ?? Promise.resolve([]);
+			const details = this.sources?.item(item.Id).catch(() => null) ?? Promise.resolve(null);
 			let source = await resolvePlayback(this.api, { item, userId: this.userId, audioStreamIndex, mediaSourceId });
 			if (this.item !== item) return; // Another play() started meanwhile.
 			const start = startPosition ?? (item.UserData?.PlaybackPositionTicks ?? 0) / TICKS_PER_SECOND;
@@ -145,11 +163,19 @@ export class Player extends EventTarget {
 			await this.reporter.start(this.state());
 			await this.video.play().catch((error) => console.warn('[player] autoplay blocked', error));
 			this.progressTimer = setInterval(() => this.report('TimeUpdate'), PROGRESS_INTERVAL_MS);
-			const outro = await outroStart;
+			const found = await segments;
 			if (this.item === item) {
+				this.segments = found;
+				const outro = found.find((s) => s.type === 'Outro')?.start ?? null;
 				this.outroStart = outro;
 				// Resuming inside the credits must not trigger the prompt right away.
 				this.outroReached = outro !== null && start >= outro;
+			}
+			const full = await details;
+			if (this.item === item && full) {
+				this.chapters = chapters(full);
+				this.trickplay = trickplayInfo(this.api, full, source.mediaSource.Id);
+				this.emit('details', { chapters: this.chapters, trickplay: this.trickplay });
 			}
 			console.info(`[player] ${source.mode}`, source.transcodeReasons.join(', ') || '', source.url);
 		} catch (error) {
@@ -249,11 +275,9 @@ export class Player extends EventTarget {
 			track.src = sub.url;
 			track.srclang = sub.language ?? '';
 			this.video.appendChild(track);
+			// Hidden: the browser loads the cues, we pick the active ones ourselves
+			// (with the timing offset), see updateSubtitle().
 			track.track.mode = 'hidden';
-			track.addEventListener('cuechange', () => {
-				const text = [...(track.track.activeCues ?? [])].map((cue) => cleanCueText(cue.text)).join('\n');
-				this.emit('subtitle', { text });
-			});
 			track.addEventListener('error', () => console.warn('[player] subtitle failed to load', sub.url));
 			this.subtitleTrack = track;
 		}
@@ -264,9 +288,58 @@ export class Player extends EventTarget {
 		this.emit('statechange');
 	}
 
+	/**
+	 * Picks the text subtitle to show now, applying the "Timing" setting
+	 * (positive: later). Called every frame by the screen.
+	 */
+	updateSubtitle() {
+		const cues = this.subtitleTrack?.track.cues;
+		let text = '';
+		if (cues?.length) {
+			const t = this.video.currentTime - getSetting('subtitleOffset');
+			const active = [];
+			for (const cue of cues) {
+				if (cue.startTime > t) break;
+				if (cue.endTime > t) active.push(cleanCueText(cue.text));
+			}
+			text = active.join('\n');
+		}
+		if (text !== this.subtitleText) {
+			this.subtitleText = text;
+			this.emit('subtitle', { text });
+		}
+	}
+
+	/** Tracks skippable segments (intro, recap, credits…), skipping them when set to. */
+	updateSegment() {
+		const t = this.video.currentTime;
+		const segment = this.segments.find((s) => SKIPPABLE.has(s.type) && t >= s.start && t < s.end - 1) ?? null;
+		if (segment === this.segment) return;
+		this.segment = segment;
+		const mode = getSetting('skipSegments');
+		// Automatic skipping: once per segment (seeking back into it plays it),
+		// and never the credits (the "Up next" prompt / end of film is there).
+		if (segment && mode === 'auto' && segment.type !== 'Outro' && !this.skippedSegments.has(segment)) {
+			this.skippedSegments.add(segment);
+			this.skipSegment();
+			return;
+		}
+		this.emit('segment', { segment: mode === 'off' ? null : segment });
+	}
+
+	/** Jumps to the end of the current segment (credits: to the end of the film). */
+	skipSegment() {
+		const segment = this.segment;
+		if (!segment) return;
+		this.seek(Math.min(segment.end, this.duration - 0.5));
+		this.segment = null;
+		this.emit('segment', { segment: null });
+	}
+
 	clearSubtitles() {
 		this.subtitleTrack?.remove();
 		this.subtitleTrack = null;
+		this.subtitleText = '';
 		this.emit('subtitle', { text: '' });
 		if (this.pgs) {
 			this.pgs.renderer.dispose();
@@ -285,6 +358,8 @@ export class Player extends EventTarget {
 			subUrl: sub.url,
 			workerUrl: pgsWorkerUrl,
 			aspectRatio: 'fill',
+			// libpgs counts "in advance" as positive; our setting counts "later".
+			timeOffset: -getSetting('subtitleOffset'),
 			// Draw in the main thread, so the canvas can be used as a WebGL texture.
 			mode: 'workerWithoutOffscreenCanvas',
 		});
@@ -385,6 +460,15 @@ export class Player extends EventTarget {
 		this.source = null;
 		this.outroStart = null;
 		this.outroReached = false;
+		this.segments = [];
+		this.skippedSegments.clear();
+		if (this.segment) {
+			this.segment = null;
+			this.emit('segment', { segment: null });
+		}
+		this.chapters = [];
+		this.trickplay = null;
+		this.emit('details', { chapters: [], trickplay: null });
 		this.clearSubtitles();
 		this.subtitleIndex = -1;
 		this.hls?.destroy();

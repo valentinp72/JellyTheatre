@@ -191,8 +191,9 @@ function showControls() {
 }
 
 /** The settings panel can be opened anytime, even during a film. */
-function openSettings() {
-	settings().setVisible(true);
+/** @param {string} [category] settings tab to open (e.g. 'subtitles') */
+function openSettings(category) {
+	settings().setVisible(true, typeof category === 'string' ? category : undefined);
 }
 
 function closeSettings() {
@@ -302,7 +303,7 @@ sceneReady.then(() => {
 	libraryEl.addEventListener('play-item', ({ detail }) => startPlayback(detail.item, detail.startPosition, detail.mediaSourceId));
 	libraryEl.addEventListener('refresh-request', () => library().refresh());
 	controlsEl.addEventListener('activity', showControls);
-	controlsEl.addEventListener('settings-request', openSettings);
+	controlsEl.addEventListener('settings-request', ({ detail }) => openSettings(detail?.category));
 	libraryEl.addEventListener('settings-request', openSettings);
 	settingsEl.addEventListener('close-request', closeSettings);
 	screenEl.addEventListener('grab-moving', screenMoved);

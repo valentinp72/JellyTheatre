@@ -113,7 +113,7 @@ export function createSources(api, userId) {
 			return listSource(async () => (await shows.getEpisodes({ ...common, seriesId, seasonId })).data.Items ?? []);
 		},
 		/** Fresh copy of an item (e.g. its resume point after watching), with its media versions. */
-		item: async (id) => (await library.getItems({ ...common, ids: [id] })).data.Items?.[0] ?? null,
+		item: async (id) => (await library.getItems({ ...common, fields: [...FIELDS, 'Chapters', 'Trickplay'], ids: [id] })).data.Items?.[0] ?? null,
 		/** @returns {Promise<object>} the updated UserData */
 		setPlayed: async (itemId, played) => {
 			const userData = getUserDataApi(api);
@@ -130,13 +130,20 @@ export function createSources(api, userId) {
 			return data;
 		},
 		/** Start of the end credits in seconds (needs media segments on the server), or null. */
-		outroStart: async (itemId) => {
+		/**
+		 * Intros, recaps, previews, commercials and credits (needs media segment
+		 * detection on the server), sorted by start, in seconds.
+		 * @returns {Promise<Array<{ type: string, start: number, end: number }>>}
+		 */
+		segments: async (itemId) => {
 			try {
-				const { data } = await getMediaSegmentApi(api).getItemSegments({ itemId, includeSegmentTypes: ['Outro'] });
-				const outro = data.Items?.[0];
-				return outro ? outro.StartTicks / TICKS_PER_SECOND : null;
+				const { data } = await getMediaSegmentApi(api).getItemSegments({ itemId });
+				return (data.Items ?? [])
+					.map((s) => ({ type: s.Type, start: s.StartTicks / TICKS_PER_SECOND, end: s.EndTicks / TICKS_PER_SECOND }))
+					.filter((s) => s.end > s.start)
+					.sort((a, b) => a.start - b.start);
 			} catch {
-				return null;
+				return [];
 			}
 		},
 		/** The episode after `episode` in its series (across seasons), or null. */
@@ -197,4 +204,31 @@ export function runtimeLabel(item) {
 	const minutes = Math.round((item.RunTimeTicks ?? 0) / TICKS_PER_SECOND / 60);
 	if (!minutes) return '';
 	return minutes >= 60 ? `${Math.floor(minutes / 60)} h ${minutes % 60} min` : `${minutes} min`;
+}
+
+/**
+ * Seek bar previews (Jellyfin trickplay): thumbnails packed in tiles.
+ * @returns {{ width: number, height: number, columns: number, rows: number, count: number, interval: number, tileUrl: (index: number) => string } | null}
+ */
+export function trickplayInfo(api, item, mediaSourceId) {
+	const resolutions = item.Trickplay?.[mediaSourceId] ?? Object.values(item.Trickplay ?? {})[0];
+	if (!resolutions) return null;
+	// The smallest resolution of at least 240 px wide is plenty for a preview.
+	const infos = Object.values(resolutions).sort((a, b) => a.Width - b.Width);
+	const info = infos.find((i) => i.Width >= 240) ?? infos[infos.length - 1];
+	if (!info?.ThumbnailCount) return null;
+	return {
+		width: info.Width,
+		height: info.Height,
+		columns: info.TileWidth,
+		rows: info.TileHeight,
+		count: info.ThumbnailCount,
+		interval: info.Interval / 1000,
+		tileUrl: (index) => api.getUri(`/Videos/${item.Id}/Trickplay/${info.Width}/${index}.jpg`, { mediaSourceId, api_key: api.accessToken }),
+	};
+}
+
+/** Chapters, in seconds. */
+export function chapters(item) {
+	return (item.Chapters ?? []).map((c) => ({ start: c.StartPositionTicks / TICKS_PER_SECOND, name: c.Name ?? '' }));
 }
