@@ -9,6 +9,11 @@ checkboxes up to date when a step is finished.
 - `npm run dev`: dev server on port 5173; `npm run dev:https` for self-signed HTTPS (LAN access from the headset)
 - `npm run build`: production build (also generates the PWA service worker)
 - `npm run preview`: serve the build
+- `npm test`: end-to-end smoke test of the built app (run `npm run build`
+  first), ~10 s, headless Chrome against the fake Jellyfin server. CI runs it
+  on every push and pull request; keep it fast.
+- `BASE_PATH=/JellyTheatre/ npm run build`: build for a sub-path (GitHub
+  Pages). Use `import.meta.env.BASE_URL` for any asset URL built in code.
 - `npm run screenshots`: builds, then captures `docs/screenshots/*.png`
   (README) and `public/environments/*.jpg` (picker cards) in headless Chrome
   against the fake Jellyfin server in `tools/screenshots/` (invented library,

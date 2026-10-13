@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "dev:https": "vite --mode https",
     "preview:https": "vite preview --mode https",
-    "screenshots": "vite build && node tools/screenshots/capture.mjs"
+    "screenshots": "vite build && node tools/screenshots/capture.mjs",
+    "test": "node tools/smoke-test.mjs"
   },
   "dependencies": {
     "@fontsource/inter": "^5.3.0",

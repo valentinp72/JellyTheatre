@@ -6,6 +6,8 @@ import pkg from './package.json' with { type: 'json' };
 // `vite --mode https` serves over self-signed HTTPS, needed to open the dev
 // server from the headset over the LAN (WebXR requires a secure context).
 export default defineConfig(({ mode }) => ({
+	// GitHub Pages serves the app under /<repository>/ (set by the workflow).
+	base: process.env.BASE_PATH ?? '/',
 	define: {
 		__APP_VERSION__: JSON.stringify(pkg.version),
 	},

@@ -111,6 +111,20 @@ Optional alternative without certificates: with the headset connected over USB
 
 On desktop, Meta's *Immersive Web Emulator* browser extension can emulate a Quest.
 
+## Testing and deployment
+
+```sh
+npm run build && npm test   # ~10 s end-to-end smoke test (headless Chrome, fake Jellyfin)
+```
+
+Every push to `main` is built, tested and published to GitHub Pages by
+`.github/workflows/pages.yml` (pull requests are built and tested only). The
+app is then served at `https://<owner>.github.io/<repository>/` and can be
+installed from there as a PWA. One-time setup: in the repository's
+*Settings → Pages*, set *Source* to *GitHub Actions*.
+
+To build for another sub-path: `BASE_PATH=/some/path/ npm run build`.
+
 ## Project layout
 
 ```

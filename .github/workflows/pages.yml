@@ -1,0 +1,56 @@
+# Builds JellyTheatre, runs the smoke test, and publishes it to GitHub Pages
+# (https://<owner>.github.io/<repository>/). Pull requests are built and tested
+# but not published.
+name: Build, test and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# A newer push cancels the run in progress (no deploy queue).
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Pages serves the app under /<repository>/.
+      BASE_PATH: /${{ github.event.repository.name }}/
+      CHROME_PATH: /usr/bin/google-chrome
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # ~10 s, in headless Chrome against the fake Jellyfin server. Playback is
+      # checked when ffmpeg is available on the runner.
+      - run: npm test
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
+        with:
+          path: dist
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

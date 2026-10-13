@@ -11,8 +11,8 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import puppeteer from 'puppeteer-core';
 import { preview } from 'vite';
+import { launchBrowser } from '../browser.mjs';
 import { startMockJellyfin } from './mock-jellyfin.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -23,21 +23,6 @@ const thumbsDir = path.join(root, 'public/environments');
 const MOCK_PORT = 8096;
 // Environments with a picker card captured here ("My room" is your real room).
 const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'void'];
-
-function findChrome() {
-	const candidates = [
-		process.env.CHROME_PATH,
-		'/usr/bin/google-chrome',
-		'/usr/bin/chromium',
-		'/usr/bin/chromium-browser',
-		'/snap/bin/chromium',
-		'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-		'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-	].filter(Boolean);
-	const found = candidates.find((candidate) => fs.existsSync(candidate));
-	if (!found) throw new Error('Chrome/Chromium not found: set CHROME_PATH.');
-	return found;
-}
 
 /** A colorful test clip (generated fractal zoom) and invented subtitles. */
 function prepareMedia() {
@@ -69,11 +54,7 @@ async function main() {
 	const mock = await startMockJellyfin({ port: MOCK_PORT, mediaDir: cacheDir });
 	const server = await preview({ root, logLevel: 'warn', preview: { port: 4175, strictPort: true, host: '127.0.0.1' } });
 	const appUrl = server.resolvedUrls.local[0];
-	const browser = await puppeteer.launch({
-		executablePath: findChrome(),
-		headless: 'new',
-		args: ['--no-sandbox', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'],
-	});
+	const browser = await launchBrowser();
 
 	try {
 		const page = await browser.newPage();
