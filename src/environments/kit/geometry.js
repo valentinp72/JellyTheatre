@@ -82,3 +82,43 @@ export function merge(geometries) {
 	});
 	return mergeGeometries(prepared, false);
 }
+
+/**
+ * A flat wall (facing +z, centered on x, from y = 0 up) with rectangular
+ * openings (windows, doors): the wall is cut into the rectangles around them.
+ * @param {Array<{ x: number, y: number, width: number, height: number }>} openings
+ * centered x, bottom y
+ */
+export function wallWithOpenings(width, height, openings, scale = 1) {
+	const breaks = new Set([-width / 2, width / 2]);
+	for (const o of openings) {
+		breaks.add(o.x - o.width / 2);
+		breaks.add(o.x + o.width / 2);
+	}
+	const xs = [...breaks].sort((a, b) => a - b);
+	const parts = [];
+	for (let i = 0; i < xs.length - 1; i++) {
+		const x0 = xs[i];
+		const x1 = xs[i + 1];
+		const mid = (x0 + x1) / 2;
+		// Vertical spans of this column not covered by an opening.
+		const holes = openings
+			.filter((o) => mid > o.x - o.width / 2 && mid < o.x + o.width / 2)
+			.map((o) => [o.y, o.y + o.height])
+			.sort((a, b) => a[0] - b[0]);
+		let y = 0;
+		for (const [bottom, top] of [...holes, [height, height]]) {
+			if (bottom > y) {
+				const piece = tiledPlane(x1 - x0, bottom - y, scale);
+				// Keep the texture continuous across pieces (UVs from wall coordinates).
+				const uv = piece.attributes.uv;
+				const pos = piece.attributes.position;
+				for (let k = 0; k < uv.count; k++) uv.setXY(k, (pos.getX(k) + mid + width / 2) / scale, (pos.getY(k) + (y + bottom) / 2) / scale);
+				piece.translate(mid, (y + bottom) / 2, 0);
+				parts.push(piece);
+			}
+			y = Math.max(y, top);
+		}
+	}
+	return merge(parts);
+}

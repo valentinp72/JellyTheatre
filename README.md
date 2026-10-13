@@ -4,6 +4,19 @@ A WebXR client for [Jellyfin](https://jellyfin.org): watch your movies and shows
 a virtual movie theatre on a VR headset (primary target: **Meta Quest 3** via the
 Quest Browser). It is an installable PWA built with [A-Frame](https://aframe.io).
 
+## Screenshots
+
+| | |
+|---|---|
+| ![Playing a film in the theatre](docs/screenshots/playing.png) | ![The library on the big screen](docs/screenshots/theatre-library.png) |
+| ![Browsing movies](docs/screenshots/library-movies.png) | ![A film's details, with its playback check](docs/screenshots/details.png) |
+| ![Home cinema](docs/screenshots/environment-home.png) | ![Space station](docs/screenshots/environment-station.png) |
+| ![Lakeside cabin](docs/screenshots/environment-cabin.png) | ![Choosing an environment](docs/screenshots/environments.png) |
+
+The screenshots (and the environment picker's pictures) are generated against
+a fake Jellyfin server with invented films: `npm run screenshots` (needs Chrome
+or Chromium, `CHROME_PATH` if not found, and ffmpeg for the film shots).
+
 ## Goals
 
 - **Environments**: the video is shown inside a 3D environment. First one: a simple
@@ -164,6 +177,10 @@ public/               Static assets (icons…)
         aisle steps, acoustic wall bays with sconces and surround speakers,
         stage, proscenium and folded curtains, exit doors, lit ceiling,
         projection booth with a beam that takes the picture's colour.
+  - [x] Home cinema (recliners, sofa on a riser, star ceiling, bookshelves),
+        space station (observation deck over a turning planet) and lakeside
+        cabin (fireplace with a real fire, rain on the windows, moonlit lake).
+  - [x] Environment picker: illustrated cards in Settings.
   - [x] Environments: theatre, dark void, passthrough ("My room", an
         immersive-ar session with the screen in your real room).
   - [x] Image subtitles (PGS) rendered client-side (libpgs), never burned in.

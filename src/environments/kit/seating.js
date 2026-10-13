@@ -40,7 +40,21 @@ export function cinemaSeat({ width = 0.62 } = {}) {
 	};
 }
 
-export class SeatRows {
+/** Places a viewer can sit (sofas, recliners…): teleporting near one lands on it. */
+export class SeatSpots {
+	/** @param {THREE.Vector3[]} seats floor positions where the viewer's rig goes */
+	constructor(seats = []) {
+		this.seats = seats;
+	}
+
+	add(...seats) {
+		this.seats.push(...seats.flat());
+		return this;
+	}
+
+}
+
+export class SeatRows extends SeatSpots {
 	/**
 	 * @param {object} options
 	 * @param {Array<{ z: number, floor: number, xs: number[] }>} options.rows seat centers per row
@@ -50,7 +64,7 @@ export class SeatRows {
 	 * @param {number} [options.blockGap] distance between seats above which a new block (and armrest) starts
 	 */
 	constructor({ rows, model, fabric, frame, blockGap }) {
-		this.seats = [];
+		super();
 		const gap = blockGap ?? model.width * 1.5;
 		const ends = [];
 		for (const row of rows) {
@@ -75,17 +89,4 @@ export class SeatRows {
 		place(new THREE.InstancedMesh(model.end, frame, ends.length), ends);
 	}
 
-	/** The seat nearest to `point` (horizontally) if within `maxDistance`, else null. */
-	snap(point, maxDistance = 0.7) {
-		let best = null;
-		let bestDistance = maxDistance;
-		for (const seat of this.seats) {
-			const distance = Math.hypot(seat.x - point.x, seat.z - point.z);
-			if (distance < bestDistance && Math.abs(seat.y - point.y) < 0.6) {
-				best = seat;
-				bestDistance = distance;
-			}
-		}
-		return best?.clone() ?? null;
-	}
 }

@@ -28,7 +28,7 @@ export function defineEnvironment(name, { build }) {
 				onTick: null,
 			};
 			build(this.env);
-			if (this.env.seats) this.env.group.add(this.env.seats.group);
+			if (this.env.seats?.group) this.env.group.add(this.env.seats.group);
 			this.el.setObject3D('environment', this.env.group);
 		},
 
@@ -43,6 +43,7 @@ export function defineEnvironment(name, { build }) {
 
 		tick(time, delta) {
 			this.env.lighting?.tick(delta);
+			for (const effect of this.env.effects ?? []) effect.tick(delta, time);
 			this.env.onTick?.(delta, time);
 		},
 

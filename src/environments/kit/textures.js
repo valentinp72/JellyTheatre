@@ -190,3 +190,246 @@ export function sign(text, background = '#0b6b3a', foreground = '#dfffe9') {
 		ctx.fillText(text, w / 2, h / 2 + 4);
 	}, { repeat: false });
 }
+
+/** Floor planks: staggered boards with grain. */
+export function planks(color = '#6b4a30') {
+	return canvasTexture(`planks-${color}`, 256, 256, (ctx, w, h) => {
+		const rand = random(21);
+		const rows = 8;
+		const rowH = h / rows;
+		for (let r = 0; r < rows; r++) {
+			let x = -rand() * 128;
+			while (x < w) {
+				const len = 96 + rand() * 96;
+				const shade = 0.85 + rand() * 0.3;
+				ctx.fillStyle = color;
+				ctx.filter = `brightness(${shade})`;
+				ctx.fillRect(x, r * rowH, len, rowH);
+				ctx.filter = 'none';
+				ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+				ctx.fillRect(x, r * rowH, 2, rowH);
+				x += len;
+			}
+			ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+			ctx.fillRect(0, r * rowH, w, 1.5);
+		}
+		for (let i = 0; i < 120; i++) {
+			ctx.strokeStyle = `rgba(0, 0, 0, ${0.04 + rand() * 0.08})`;
+			const y = rand() * h;
+			ctx.beginPath();
+			ctx.moveTo(0, y);
+			ctx.lineTo(w, y + (rand() - 0.5) * 2);
+			ctx.stroke();
+		}
+		noise(ctx, w, h, 10, 23);
+	});
+}
+
+/** Stacked logs (cabin walls): rounded horizontal bands with dark gaps. */
+export function logs(color = '#7a5232') {
+	return canvasTexture(`logs-${color}`, 256, 256, (ctx, w, h) => {
+		const count = 4;
+		const logH = h / count;
+		for (let i = 0; i < count; i++) {
+			const gradient = ctx.createLinearGradient(0, i * logH, 0, (i + 1) * logH);
+			gradient.addColorStop(0, '#2a1a10');
+			gradient.addColorStop(0.15, color);
+			gradient.addColorStop(0.55, color);
+			gradient.addColorStop(0.9, '#3a2516');
+			gradient.addColorStop(1, '#1a0f08');
+			ctx.fillStyle = gradient;
+			ctx.fillRect(0, i * logH, w, logH);
+		}
+		const rand = random(31);
+		for (let i = 0; i < 90; i++) {
+			ctx.strokeStyle = `rgba(0, 0, 0, ${0.05 + rand() * 0.1})`;
+			const y = rand() * h;
+			ctx.beginPath();
+			ctx.moveTo(0, y);
+			for (let x = 0; x <= w; x += 32) ctx.lineTo(x, y + Math.sin(x * 0.05 + i) * 1.2);
+			ctx.stroke();
+		}
+		noise(ctx, w, h, 12, 33);
+	});
+}
+
+/** Irregular fieldstone (fireplace). */
+export function stone(color = '#6f6a64') {
+	return canvasTexture(`stone-${color}`, 256, 256, (ctx, w, h) => {
+		ctx.fillStyle = '#2b2826';
+		ctx.fillRect(0, 0, w, h);
+		const rand = random(41);
+		let y = 0;
+		while (y < h) {
+			const rowH = 28 + rand() * 20;
+			let x = -rand() * 30;
+			while (x < w) {
+				const sw = 36 + rand() * 40;
+				ctx.fillStyle = color;
+				ctx.filter = `brightness(${0.7 + rand() * 0.5})`;
+				ctx.beginPath();
+				ctx.roundRect(x + 2, y + 2, sw - 4, rowH - 4, 8);
+				ctx.fill();
+				ctx.filter = 'none';
+				x += sw;
+			}
+			y += rowH;
+		}
+		noise(ctx, w, h, 22, 43);
+	});
+}
+
+/** Metal deck plates with seams and rivets (space station). */
+export function deckPlates(color = '#5d636b') {
+	return canvasTexture(`deck-${color}`, 256, 256, (ctx, w, h) => {
+		ctx.fillStyle = color;
+		ctx.fillRect(0, 0, w, h);
+		noise(ctx, w, h, 12, 51);
+		ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+		ctx.lineWidth = 3;
+		ctx.strokeRect(0, 0, w, h);
+		ctx.beginPath();
+		ctx.moveTo(w / 2, 0);
+		ctx.lineTo(w / 2, h);
+		ctx.stroke();
+		ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+		for (const [x, y] of [[10, 10], [w / 2 - 10, 10], [w / 2 + 10, 10], [w - 10, 10], [10, h - 10], [w / 2 - 10, h - 10], [w / 2 + 10, h - 10], [w - 10, h - 10]]) {
+			ctx.beginPath();
+			ctx.arc(x, y, 3, 0, Math.PI * 2);
+			ctx.fill();
+		}
+	});
+}
+
+/** Leather: soft mottled surface. */
+export function leather(color = '#4a2b1d') {
+	return canvasTexture(`leather-${color}`, 128, 128, (ctx, w, h) => {
+		ctx.fillStyle = color;
+		ctx.fillRect(0, 0, w, h);
+		const rand = random(61);
+		for (let i = 0; i < 300; i++) {
+			ctx.fillStyle = `rgba(0, 0, 0, ${rand() * 0.08})`;
+			ctx.beginPath();
+			ctx.arc(rand() * w, rand() * h, 1 + rand() * 4, 0, Math.PI * 2);
+			ctx.fill();
+		}
+		noise(ctx, w, h, 10, 63);
+	});
+}
+
+/** Rug: border bands around a patterned field. */
+export function rug(field = '#5b2a2a', border = '#c9a36b', pattern = '#2e3d5c') {
+	return canvasTexture(`rug-${field}-${border}`, 256, 256, (ctx, w, h) => {
+		ctx.fillStyle = border;
+		ctx.fillRect(0, 0, w, h);
+		ctx.fillStyle = field;
+		ctx.fillRect(18, 18, w - 36, h - 36);
+		ctx.strokeStyle = pattern;
+		ctx.lineWidth = 6;
+		ctx.strokeRect(30, 30, w - 60, h - 60);
+		ctx.fillStyle = pattern;
+		for (let y = 64; y < h - 48; y += 40) {
+			for (let x = 64; x < w - 48; x += 40) {
+				ctx.beginPath();
+				ctx.moveTo(x, y - 10);
+				ctx.lineTo(x + 10, y);
+				ctx.lineTo(x, y + 10);
+				ctx.lineTo(x - 10, y);
+				ctx.fill();
+			}
+		}
+		noise(ctx, w, h, 16, 71);
+	}, { repeat: false });
+}
+
+/** A flame: bright core fading to orange edges, transparent around. */
+export function flame() {
+	return canvasTexture('flame', 64, 128, (ctx, w, h) => {
+		const gradient = ctx.createRadialGradient(w / 2, h * 0.72, 2, w / 2, h * 0.6, h * 0.5);
+		gradient.addColorStop(0, 'rgba(255, 245, 200, 1)');
+		gradient.addColorStop(0.25, 'rgba(255, 180, 60, 0.9)');
+		gradient.addColorStop(0.6, 'rgba(230, 80, 20, 0.45)');
+		gradient.addColorStop(1, 'rgba(120, 20, 0, 0)');
+		ctx.fillStyle = gradient;
+		ctx.beginPath();
+		ctx.moveTo(w / 2, 0);
+		ctx.bezierCurveTo(w * 0.95, h * 0.45, w, h * 0.9, w / 2, h);
+		ctx.bezierCurveTo(0, h * 0.9, w * 0.05, h * 0.45, w / 2, 0);
+		ctx.fill();
+	}, { repeat: false });
+}
+
+/** Rain streaks for window glass (scrolled vertically). */
+export function rain() {
+	return canvasTexture('rain', 128, 256, (ctx, w, h) => {
+		ctx.clearRect(0, 0, w, h);
+		const rand = random(81);
+		for (let i = 0; i < 70; i++) {
+			const x = rand() * w;
+			const y = rand() * h;
+			const len = 10 + rand() * 30;
+			ctx.strokeStyle = `rgba(200, 220, 255, ${0.1 + rand() * 0.25})`;
+			ctx.lineWidth = 1;
+			ctx.beginPath();
+			ctx.moveTo(x, y);
+			ctx.lineTo(x + 1, y + len);
+			ctx.stroke();
+			ctx.fillStyle = 'rgba(220, 235, 255, 0.35)';
+			ctx.beginPath();
+			ctx.arc(x + 1, y + len, 1.5, 0, Math.PI * 2);
+			ctx.fill();
+		}
+	});
+}
+
+/** A made-up planet surface (equirectangular): oceans, land masses and clouds. */
+export function planetSurface(seed = 7) {
+	return canvasTexture(`planet-${seed}`, 512, 256, (ctx, w, h) => {
+		ctx.fillStyle = '#1b3f6b';
+		ctx.fillRect(0, 0, w, h);
+		const rand = random(seed);
+		// Land: clusters of blobs.
+		for (let c = 0; c < 9; c++) {
+			const cx = rand() * w;
+			const cy = h * (0.2 + rand() * 0.6);
+			for (let i = 0; i < 40; i++) {
+				const r = 6 + rand() * 22;
+				ctx.fillStyle = rand() > 0.3 ? '#4e6b3a' : '#8a7a52';
+				ctx.beginPath();
+				const x = (cx + (rand() - 0.5) * 120 + w) % w;
+				ctx.arc(x, cy + (rand() - 0.5) * 60, r, 0, Math.PI * 2);
+				ctx.fill();
+			}
+		}
+		// Polar caps.
+		ctx.fillStyle = 'rgba(235, 240, 245, 0.9)';
+		ctx.fillRect(0, 0, w, h * 0.06);
+		ctx.fillRect(0, h * 0.94, w, h * 0.06);
+		// Clouds.
+		for (let i = 0; i < 220; i++) {
+			ctx.fillStyle = `rgba(255, 255, 255, ${0.08 + rand() * 0.2})`;
+			ctx.beginPath();
+			ctx.ellipse(rand() * w, rand() * h, 10 + rand() * 40, 2 + rand() * 6, 0, 0, Math.PI * 2);
+			ctx.fill();
+		}
+	});
+}
+
+/** A water drop on glass: transparent, with a bright rim and a highlight. */
+export function droplet() {
+	return canvasTexture('droplet', 64, 64, (ctx, w, h) => {
+		ctx.clearRect(0, 0, w, h);
+		const rim = ctx.createRadialGradient(w / 2, h / 2, w * 0.18, w / 2, h / 2, w * 0.48);
+		rim.addColorStop(0, 'rgba(255, 255, 255, 0.05)');
+		rim.addColorStop(0.8, 'rgba(210, 225, 255, 0.55)');
+		rim.addColorStop(1, 'rgba(210, 225, 255, 0)');
+		ctx.fillStyle = rim;
+		ctx.beginPath();
+		ctx.arc(w / 2, h / 2, w * 0.48, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+		ctx.beginPath();
+		ctx.arc(w * 0.4, h * 0.36, w * 0.07, 0, Math.PI * 2);
+		ctx.fill();
+	}, { repeat: false });
+}

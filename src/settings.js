@@ -11,13 +11,18 @@ export const SETTING_DEFINITIONS = [
 		name: 'environment',
 		type: 'choice',
 		default: 'theater',
+		// Chosen on a page of illustrated cards (see the settings panel).
+		picker: 'environment',
 		options: [
-			{ value: 'theater', label: 'Theatre' },
+			{ value: 'theater', label: 'Movie theatre' },
+			{ value: 'home', label: 'Home cinema' },
+			{ value: 'station', label: 'Space station' },
+			{ value: 'cabin', label: 'Lakeside cabin' },
 			{ value: 'void', label: 'Dark void' },
 			{ value: 'passthrough', label: 'My room' },
 		],
 		label: 'Environment',
-		description: 'Where you watch. "My room" shows your real surroundings (passthrough).',
+		description: 'Where you watch: a theatre, a home cinema, a space station, a cabin… or your own room.',
 	},
 	{
 		name: 'roomBrightness',

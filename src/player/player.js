@@ -170,7 +170,10 @@ export class Player extends EventTarget {
 			const onReady = () => {
 				cleanup();
 				// Seek before resolving, so the start report has the resume position.
-				if (start > 0) v.currentTime = start;
+				// A resume point at (or past) the end, e.g. saved for another version
+				// of the file, starts from the beginning instead of ending at once.
+				const resumable = !Number.isFinite(v.duration) || start < v.duration - 5;
+				if (start > 0 && resumable) v.currentTime = start;
 				resolve();
 			};
 			const onError = () => {

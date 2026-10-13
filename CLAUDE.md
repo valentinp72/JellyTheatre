@@ -9,6 +9,11 @@ checkboxes up to date when a step is finished.
 - `npm run dev`: dev server on port 5173; `npm run dev:https` for self-signed HTTPS (LAN access from the headset)
 - `npm run build`: production build (also generates the PWA service worker)
 - `npm run preview`: serve the build
+- `npm run screenshots`: builds, then captures `docs/screenshots/*.png`
+  (README) and `public/environments/*.jpg` (picker cards) in headless Chrome
+  against the fake Jellyfin server in `tools/screenshots/` (invented library,
+  generated posters; ffmpeg generates a test clip). Rerun it after changing an
+  environment or the UI. The fake server is also handy for manual testing.
 - Quest testing: `npm run dev:https`, open `https://<pc-ip>:5173` on the Quest
   (plain HTTP on a LAN IP is not a secure context: no WebXR). Optional: USB +
   `adb reverse tcp:5173 tcp:5173`, then open
@@ -82,8 +87,15 @@ checkboxes up to date when a step is finished.
   (merges static geometry per material; `walkable` for teleport surfaces),
   `textures` (procedural, cached; no image assets), `geometry` (rounded boxes,
   folded curtains, stairs, metre-tiled UVs), `SeatRows` + `cinemaSeat`
-  (instanced seats, teleport snapping), `EnvironmentLighting` (house lights,
-  fixtures and glows that dim, screen light, `onScreen` effects).
+  (instanced seats, teleport snapping), `SeatSpots` (snapping for props),
+  `props` (sofa, recliner, bookshelf, lamps, plant, table, rug, speaker,
+  `Placer`), `sky` (gradient sky, stars, planet, moon, mountains, lake,
+  pines), `Fire` (flames + flickering light; push into `env.effects`),
+  `EnvironmentLighting` (house lights, fixtures and glows that dim, screen
+  light, `onScreen` effects).
+- A new environment also needs an entry in `src/environments/index.js` (name,
+  description), an option in the `environment` setting and a picker
+  illustration in `src/environments/icons.js`.
 - Quest budget for an environment: ~50 draw calls and ~150k triangles (it is
   drawn once per eye). Keep instanced models low-poly.
 - Teleport surfaces are meshes with `userData.teleport = true` (only faces
