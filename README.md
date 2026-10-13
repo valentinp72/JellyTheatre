@@ -135,6 +135,17 @@ Architecture, how Jellyfin is used, the playback strategy, development setup,
 testing on the Quest and deployment are in
 [docs/TECHNICAL.md](docs/TECHNICAL.md).
 
+## Credits
+
+The films in the screenshots are open movies by the
+[Blender Foundation / Blender Studio](https://studio.blender.org/films/),
+released under Creative Commons Attribution licences (CC BY 2.5, 3.0 or 4.0):
+*Sintel*, *Tears of Steel*, *Big Buck Bunny*, *Spring*, *Sprite Fright*,
+*Charge*, *Cosmos Laundromat*, *Elephants Dream*, *Coffee Run*, *Wing It!*,
+*Hero*, *Glass Half* and *Caminandes*. Posters and footage come from
+[Wikimedia Commons](https://commons.wikimedia.org). Some posters were made from a
+still of the film with its title added, and the clip that plays is silent.
+
 ## License
 
 See [LICENSE](LICENSE).

@@ -123,15 +123,23 @@ To build for another sub-path: `BASE_PATH=/some/path/ npm run build`.
 ## Screenshots
 
 The README screenshots (`docs/screenshots/*.png`) and the environment picker's
-pictures (`public/environments/*.jpg`) are generated against a fake Jellyfin
-server with invented films (`tools/screenshots/mock-jellyfin.mjs`):
+pictures (`public/environments/*.jpg`) are taken in headless Chrome against a
+fake Jellyfin server (`tools/screenshots/mock-jellyfin.mjs`):
 
 ```sh
 npm run screenshots
 ```
 
-It needs Chrome or Chromium (`CHROME_PATH` if it is not found) and ffmpeg for
-the shots with a film playing. The fake server is also handy for manual
+The library shown is Blender's open movies (`tools/screenshots/open-movies.mjs`).
+The first run downloads their posters, a few stills and a 40 s clip of
+*Tears of Steel* (with its English subtitles) from Wikimedia Commons into
+`tools/screenshots/.cache/`. That folder is not committed. Every file used is
+CC BY. The soundtrack is CC BY-ND, so the clip is silent. Without network
+access, the script falls back to the invented library. It needs Chrome or
+Chromium (`CHROME_PATH` if it is not found) and ffmpeg.
+
+The smoke test uses the invented library (fictional titles, generated posters),
+so it never downloads anything. The fake server is also handy for manual
 testing.
 
 ## Project layout

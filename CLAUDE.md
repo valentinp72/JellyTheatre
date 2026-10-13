@@ -19,9 +19,12 @@ ships.
   Pages). Use `import.meta.env.BASE_URL` for any asset URL built in code.
 - `npm run screenshots`: builds, then captures `docs/screenshots/*.png`
   (README) and `public/environments/*.jpg` (picker cards) in headless Chrome
-  against the fake Jellyfin server in `tools/screenshots/` (invented library,
-  generated posters; ffmpeg generates a test clip). Rerun it after changing an
-  environment or the UI. The fake server is also handy for manual testing.
+  against the fake Jellyfin server in `tools/screenshots/`. Its library is
+  Blender's open movies (CC BY; posters and a clip downloaded once into the
+  uncommitted cache, credited in the README). Only use films with a CC BY
+  licence and credit them. `npm test` uses the invented library and never
+  downloads. Rerun it after changing an environment or the UI. The fake server
+  is also handy for manual testing.
 - Quest testing: `npm run dev:https`, open `https://<pc-ip>:5173` on the Quest
   (plain HTTP on a LAN IP is not a secure context: no WebXR). Optional: USB +
   `adb reverse tcp:5173 tcp:5173`, then open

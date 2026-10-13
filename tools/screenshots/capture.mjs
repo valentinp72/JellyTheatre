@@ -4,8 +4,11 @@
 //
 //   npm run screenshots
 //
-// Needs Chrome or Chromium (set CHROME_PATH if it isn't found) and, for the
-// shots with a film playing, ffmpeg (a test clip is generated once).
+// The library is Blender's open movies (open-movies.mjs): posters and a clip
+// are downloaded once into .cache/open-movies/. Without network, it falls
+// back to the invented library and a generated clip.
+//
+// Needs Chrome or Chromium (set CHROME_PATH if it isn't found) and ffmpeg.
 
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -14,17 +17,19 @@ import { fileURLToPath } from 'node:url';
 import { preview } from 'vite';
 import { launchBrowser } from '../browser.mjs';
 import { startMockJellyfin } from './mock-jellyfin.mjs';
+import { prepareOpenMovies } from './open-movies.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, '../..');
 const cacheDir = path.join(here, '.cache');
+const openMoviesDir = path.join(cacheDir, 'open-movies');
 const docsDir = path.join(root, 'docs/screenshots');
 const thumbsDir = path.join(root, 'public/environments');
 const MOCK_PORT = 8096;
 // Environments with a picker card captured here ("My room" is your real room).
 const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'void'];
 
-/** A colorful test clip (generated fractal zoom) and invented subtitles. */
+/** Fallback: a colorful test clip (generated fractal zoom) and invented subtitles. */
 function prepareMedia() {
 	fs.mkdirSync(cacheDir, { recursive: true });
 	const clip = path.join(cacheDir, 'test.mp4');
@@ -47,11 +52,14 @@ function prepareMedia() {
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function main() {
-	const hasVideo = prepareMedia();
+	const open = await prepareOpenMovies(openMoviesDir);
+	const hasVideo = open || prepareMedia();
 	fs.mkdirSync(docsDir, { recursive: true });
 	fs.mkdirSync(thumbsDir, { recursive: true });
 
-	const mock = await startMockJellyfin({ port: MOCK_PORT, mediaDir: cacheDir });
+	const mock = open
+		? await startMockJellyfin({ port: MOCK_PORT, mediaDir: openMoviesDir, library: 'open' })
+		: await startMockJellyfin({ port: MOCK_PORT, mediaDir: cacheDir });
 	const server = await preview({ root, logLevel: 'warn', preview: { port: 4175, strictPort: true, host: '127.0.0.1' } });
 	const appUrl = server.resolvedUrls.local[0];
 	const browser = await launchBrowser();
@@ -81,7 +89,7 @@ async function main() {
 			const row = document.querySelector('#settings-panel').components['settings-panel'].rows.find((r) => r.setting.name === name);
 			// Click through the values until the wanted one (booleans and choices).
 			for (let i = 0; i < 8; i++) {
-				const current = JSON.parse(localStorage.getItem('jellytheatre.settings') ?? '{}')[name];
+				const current = JSON.parse(localStorage.getItem('jellytheatre.settings') ?? '{}')[name] ?? row.setting.default;
 				if (current === value) return;
 				row.value.emit('click');
 			}
