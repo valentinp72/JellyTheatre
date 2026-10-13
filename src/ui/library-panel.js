@@ -1,7 +1,7 @@
 // Library browser shown when nothing is playing.
 //
 // Tabs: Continue watching, Next up, New movies, New shows, Movies, Shows
-// (whole collection: sort, genre and unwatched filters), Favourites, Search
+// (whole collection: sort, genre, hide watched), Favourites, Search
 // (on-screen + physical keyboard). Clicking a card opens a details view
 // (movie / episode) or a series view (seasons and episodes), where items can
 // be marked watched or favourite. Emits `play-item` { item, startPosition,
@@ -49,6 +49,24 @@ const TABS = [
 	{ id: 'search', label: 'Search', noun: ['result', 'results'], empty: 'No results.' },
 ];
 
+const HIDE_WATCHED_KEY = 'jellytheatre.hideWatched';
+
+function readFlag(key) {
+	try {
+		return localStorage.getItem(key) === 'true';
+	} catch {
+		return false;
+	}
+}
+
+function writeFlag(key, value) {
+	try {
+		localStorage.setItem(key, String(value));
+	} catch {
+		// Not remembered (private mode…).
+	}
+}
+
 const pages = (total, perPage) => Math.max(1, Math.ceil(total / perPage));
 
 AFRAME.registerComponent('library-panel', {
@@ -66,7 +84,9 @@ AFRAME.registerComponent('library-panel', {
 		this.stack = [];
 		this.page = 0;
 		this.sortIndex = { movies: 0, shows: 0 };
-		this.filters = { movies: { genre: null, unwatched: false }, shows: { genre: null, unwatched: false } };
+		this.filters = { movies: { genre: null }, shows: { genre: null } };
+		// "Hide watched": shared by the Movies and Shows tabs, remembered.
+		this.hideWatched = readFlag(HIDE_WATCHED_KEY);
 		this.searchText = '';
 		this.loadToken = 0;
 		this.searchTimer = null;
@@ -142,9 +162,9 @@ AFRAME.registerComponent('library-panel', {
 			this.stack.push({ type: 'genres', tab: this.tab, page: 0 });
 			this.render();
 		}, this.grid);
-		this.unwatchedButton = this.button({ label: 'Unwatched only', width: 0.28 }, LEFT + 0.74 + 0.14, toolbarY, () => {
-			const filters = this.filters[this.tab];
-			filters.unwatched = !filters.unwatched;
+		this.unwatchedButton = this.button({ label: 'Hide watched: Off', width: 0.32 }, LEFT + 0.74 + 0.16, toolbarY, () => {
+			this.hideWatched = !this.hideWatched;
+			writeFlag(HIDE_WATCHED_KEY, this.hideWatched);
 			this.page = 0;
 			this.render();
 		}, this.grid);
@@ -562,9 +582,11 @@ AFRAME.registerComponent('library-panel', {
 
 	gridSource(tab) {
 		if (tab.id === 'movies' || tab.id === 'shows') {
-			const { genre, unwatched } = this.filters[tab.id];
-			return this.sources.collection(tab.type, SORTS[this.sortIndex[tab.id]], { genreId: genre?.Id, unwatched });
+			const { genre } = this.filters[tab.id];
+			return this.sources.collection(tab.type, SORTS[this.sortIndex[tab.id]], { genreId: genre?.Id, unwatched: this.hideWatched });
 		}
+		if (tab.id === 'latestMovies') return this.sources.latest('Movie');
+		if (tab.id === 'latestShows') return this.sources.latest('Episode');
 		if (tab.id === 'search') return this.sources.search(this.searchText.trim());
 		return this.sources[tab.id];
 	},
@@ -576,12 +598,12 @@ AFRAME.registerComponent('library-panel', {
 		this.show(this.sortButton, sortable);
 		this.show(this.genreButton, sortable);
 		this.show(this.unwatchedButton, sortable);
+		this.unwatchedButton.setAttribute('ui-button', { label: `Hide watched: ${this.hideWatched ? 'On' : 'Off'}`, active: this.hideWatched });
 		this.show(this.searchField, isSearch);
 		if (sortable) {
-			const { genre, unwatched } = this.filters[tab.id];
+			const { genre } = this.filters[tab.id];
 			this.sortButton.setAttribute('ui-button', 'label', `Sort: ${SORTS[this.sortIndex[tab.id]].label}`);
 			this.genreButton.setAttribute('ui-button', { label: `Genre: ${truncate(genre?.Name ?? 'All', 16)}`, active: Boolean(genre) });
-			this.unwatchedButton.setAttribute('ui-button', 'active', unwatched);
 		}
 		if (isSearch) this.renderSearchField();
 

@@ -32,7 +32,10 @@ AFRAME.registerComponent('video-screen', {
 	},
 
 	init() {
-		this.idleMaterial = new THREE.MeshBasicMaterial({ color: '#16121b' });
+		// A matte white screen when nothing plays, like in a real cinema: lit by
+		// the room (not glaring when the lights are dim), with a faint glow so it
+		// never turns black in an unlit environment.
+		this.idleMaterial = new THREE.MeshLambertMaterial({ color: '#e9e7e2', emissive: '#262524' });
 		this.videoMaterial = new THREE.MeshBasicMaterial({ toneMapped: false });
 		this.holeMaterial = createHoleMaterial();
 		this.mesh = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), this.idleMaterial);

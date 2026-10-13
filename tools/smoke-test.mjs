@@ -83,6 +83,14 @@ async function main() {
 		await expect('library shows continue watching', () => document.querySelectorAll('#library-panel [ui-poster].clickable').length >= 1);
 		await clickButton('#library-panel', 'Movies');
 		await expect('movies collection loads', () => document.querySelectorAll('#library-panel [ui-poster].clickable').length >= 10);
+		const watched = await page.evaluate(() => [...document.querySelectorAll('#library-panel [ui-poster].clickable')].filter((c) => c.components['ui-poster'].item.UserData?.Played).length);
+		await clickButton('#library-panel', 'Hide watched');
+		await expect('"Hide watched" filters out watched films', (watched) => {
+			const cards = [...document.querySelectorAll('#library-panel [ui-poster].clickable')];
+			return watched > 0 && cards.length > 0 && cards.every((c) => !c.components['ui-poster'].item.UserData?.Played);
+		}, watched);
+		await clickButton('#library-panel', 'Hide watched');
+		await expect('all films back without the filter', () => document.querySelectorAll('#library-panel [ui-poster].clickable').length >= 10);
 		await page.evaluate(() => document.querySelector('#library-panel [ui-poster].clickable').emit('click'));
 		await expect('details page checks playback with the server', () => {
 			const panel = document.querySelector('#library-panel').components['library-panel'];

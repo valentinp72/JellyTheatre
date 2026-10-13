@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { environments } from '../environments/index.js';
 import { environmentIcon } from '../environments/icons.js';
 import { getSetting, runSettingAction, setSetting, SETTING_CATEGORIES, SETTING_DEFINITIONS } from '../settings.js';
-import { COLORS, entity, loadTexture, setInteractiveVisible } from './widgets.js';
+import { COLORS, entity, loadTexture, roundedRect, setInteractiveVisible } from './widgets.js';
 
 export const SETTINGS_WIDTH = 1.6;
 export const SETTINGS_HEIGHT = 1.12;
@@ -165,11 +165,12 @@ AFRAME.registerComponent('settings-panel', {
 			const row = Math.floor(i / cols);
 			const card = entity({
 				position: `${LEFT + cardW / 2 + col * (cardW + gap)} ${TOP - 0.15 - cardH / 2 - row * (cardH + gap)} 0.002`,
-				'ui-button': { label: '', width: cardW, height: cardH, active: option.value === current },
+				'ui-button': { label: '', width: cardW, height: cardH, radius: 0.03, active: option.value === current },
 			});
 			const image = entity({ position: `0 ${cardH / 2 - 0.015 - imageH / 2} 0.003` });
 			const material = new THREE.MeshBasicMaterial({ map: environmentIcon(option.value) });
-			image.setObject3D('mesh', new THREE.Mesh(new THREE.PlaneGeometry(imageW, imageH), material));
+			// Rounded like the card, so its corners stay inside it.
+			image.setObject3D('mesh', new THREE.Mesh(roundedRect(imageW, imageH, 0.02), material));
 			// A real screenshot when there is one (npm run screenshots); the drawn
 			// illustration otherwise.
 			if (info?.thumbnail) {

@@ -48,6 +48,7 @@ export function createSources(api, userId) {
 	const common = { userId, fields: FIELDS, enableImageTypes: IMAGE_TYPES, imageTypeLimit: 1, enableUserData: true };
 	const library = getLibraryApi(api);
 	const shows = getShowApi(api);
+	const latestCache = {};
 	const page = ({ data }) => ({ items: data.Items ?? [], total: data.TotalRecordCount ?? data.Items?.length ?? 0 });
 
 	return {
@@ -57,9 +58,19 @@ export function createSources(api, userId) {
 		nextUp: {
 			load: (startIndex, limit) => shows.getNextUp({ ...common, startIndex, limit, enableResumable: false, enableTotalRecordCount: true }).then(page),
 		},
-		latestMovies: listSource(async () => (await library.getLatestMedia({ ...common, limit: LATEST_LIMIT, includeItemTypes: ['Movie'] })).data ?? []),
-		// Grouped: a show with several new episodes appears once, as the series.
-		latestShows: listSource(async () => (await library.getLatestMedia({ ...common, limit: LATEST_LIMIT, includeItemTypes: ['Episode'], groupItems: true })).data ?? []),
+		/**
+		 * Recently added movies ('Movie') or episodes ('Episode', grouped: a show
+		 * with several new episodes appears once, as the series).
+		 */
+		latest(type) {
+			latestCache[type] ??= listSource(async () => (await library.getLatestMedia({
+				...common,
+				limit: LATEST_LIMIT,
+				includeItemTypes: [type],
+				groupItems: type === 'Episode',
+			})).data ?? []);
+			return latestCache[type];
+		},
 		/**
 		 * @param {'Movie' | 'Series'} type
 		 * @param {{ sortBy: string[], sortOrder: string[] }} sort

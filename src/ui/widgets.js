@@ -95,6 +95,8 @@ AFRAME.registerComponent('ui-button', {
 		icon: { type: 'string', default: '' },
 		// Text announced on hover (`tooltip` event, bubbling) for icon buttons.
 		tooltip: { type: 'string', default: '' },
+		// Corner radius; negative: 30 % of the height (pill-like buttons).
+		radius: { type: 'number', default: -1 },
 	},
 
 	init() {
@@ -156,7 +158,7 @@ AFRAME.registerComponent('ui-button', {
 		const d = this.data;
 		let color = d.active ? d.activeColor : d.color;
 		if (this.hovered > 0 && !d.disabled) color = d.hoverColor;
-		this.el.setAttribute('ui-rect', { width: d.width, height: d.height, radius: d.height * 0.3, color });
+		this.el.setAttribute('ui-rect', { width: d.width, height: d.height, radius: d.radius >= 0 ? d.radius : d.height * 0.3, color });
 	},
 });
 

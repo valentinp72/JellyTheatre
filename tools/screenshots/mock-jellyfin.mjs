@@ -174,7 +174,10 @@ export function startMockJellyfin({ port = 8096, mediaDir }) {
 				case '/Users/Me': return send(200, { Id: 'user', Name: 'Alex' });
 				case '/UserItems/Resume': return send(200, { Items: [movies[1], movies[4], episodes(1)[3]], TotalRecordCount: 3 });
 				case '/Shows/NextUp': return send(200, url.searchParams.get('seriesId') ? { Items: [episodes(1)[3]] } : { Items: [episodes(1)[3]], TotalRecordCount: 1 });
-				case '/Items/Latest': return send(200, url.searchParams.get('includeItemTypes') === 'Movie' ? movies.slice(0, 9) : [series]);
+				case '/Items/Latest': {
+					const latest = url.searchParams.get('includeItemTypes') === 'Movie' ? movies.slice(0, 9) : [series];
+					return send(200, url.searchParams.get('isPlayed') === 'false' ? latest.filter((i) => !i.UserData?.Played) : latest);
+				}
 				case `/Shows/${series.Id}/Seasons`: return send(200, { Items: seasons });
 				case `/Shows/${series.Id}/Episodes`: return send(200, { Items: episodes(Number((url.searchParams.get('seasonId') ?? 'season-1').split('-')[1])) });
 				case '/Genres': return send(200, { Items: [...new Set(FILMS.flatMap((f) => f[3]))].map((name, i) => ({ Id: `genre-${i}`, Name: name })) });
@@ -184,7 +187,8 @@ export function startMockJellyfin({ port = 8096, mediaDir }) {
 					const term = url.searchParams.get('searchTerm')?.toLowerCase();
 					if (term) return send(200, pageOf(allItems.filter((i) => i.Name.toLowerCase().includes(term)), url));
 					if (url.searchParams.get('isFavorite')) return send(200, pageOf([movies[2], series], url));
-					return send(200, pageOf(url.searchParams.get('includeItemTypes') === 'Series' ? [series] : movies, url));
+					const list = url.searchParams.get('includeItemTypes') === 'Series' ? [series] : movies;
+					return send(200, pageOf(url.searchParams.get('isPlayed') === 'false' ? list.filter((i) => !i.UserData?.Played) : list, url));
 				}
 				default: return send(404);
 			}

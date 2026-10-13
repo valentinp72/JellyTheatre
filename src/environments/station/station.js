@@ -14,8 +14,9 @@ import { SeatSpots } from '../kit/seating.js';
 import { gradientSky, moon, planet, starfield } from '../kit/sky.js';
 import * as textures from '../kit/textures.js';
 
-const DECK = { halfWidth: 8, front: -9.5, back: 6, height: 5 };
-const SCREEN = { x: 0, y: 2.7, z: -9.35, maxWidth: 7, maxHeight: 3.94 };
+// A tall deck, so the screen can fill most of the front wall.
+const DECK = { halfWidth: 8, front: -9.5, back: 6, height: 7.5 };
+const SCREEN = { x: 0, y: 3.75, z: -9.35, maxWidth: 11.5, maxHeight: 6.47 };
 const COUCH_Z = -1;
 // Openings: the skylight (in the ceiling) and the floor window, in world x/z.
 const SKYLIGHT = { x: 0, z: -1.75, width: 13, depth: 12.5 };
@@ -168,7 +169,7 @@ function buildDeck(b, m) {
 	}
 	// Front wall (the screen hangs on it) and back wall.
 	b.add(new THREE.PlaneGeometry(halfWidth * 2, height), m.panel, { position: [0, height / 2, front] });
-	for (const x of [-halfWidth / 2 - 2, halfWidth / 2 + 2]) {
+	for (const x of [-halfWidth + 1, halfWidth - 1]) {
 		b.add(roundedBox(0.3, height, 0.4, 0.08, 1), m.rib, { position: [x, height / 2, front + 0.15] });
 	}
 	b.add(box(halfWidth * 2, 0.05, 0.04), m.strip, { position: [0, 0.15, front + 0.33] });
