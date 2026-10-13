@@ -1,6 +1,7 @@
-// Space station lounge: an observation deck with a skylight overhead (stars,
-// a moon) and a glass window in the floor between the couches and the screen,
-// with a slowly turning planet below. The screen hangs on a solid front wall;
+// Space station lounge: an observation deck with a skylight over almost the
+// whole ceiling (stars, a moon) and a glass floor under almost the whole deck,
+// with a slowly turning planet below: the couches stand on an island over
+// space. The screen hangs on a solid front wall;
 // lounge couches, metal deck plates and cyan light strips inside.
 
 import * as THREE from 'three';
@@ -17,8 +18,9 @@ const DECK = { halfWidth: 8, front: -9.5, back: 6, height: 5 };
 const SCREEN = { x: 0, y: 2.7, z: -9.35, maxWidth: 7, maxHeight: 3.94 };
 const COUCH_Z = -1;
 // Openings: the skylight (in the ceiling) and the floor window, in world x/z.
-const SKYLIGHT = { x: 0, z: -2.5, width: 10, depth: 9 };
-const FLOOR_WINDOW = { x: 0, z: -5.4, width: 5, depth: 4 };
+const SKYLIGHT = { x: 0, z: -1.75, width: 13, depth: 12.5 };
+// A metal walkway stays along the walls; everything else is glass.
+const FLOOR_WINDOW = { x: 0, z: -1.75, width: 13, depth: 12.5 };
 const FLOOR_THICKNESS = 0.45;
 
 export const stationLayout = {
@@ -76,10 +78,10 @@ defineEnvironment('station', {
 		space.add(gradientSky([[0, '#020309'], [0.5, '#05060f'], [1, '#020309']], 400));
 		space.add(starfield({ count: 2500, radius: 380, seed: 11 }));
 		const sun = new THREE.Vector3(0.6, 0.7, 0.35);
-		// Right below the floor window: it fills the view down through the glass,
-		// its horizon showing at the far edge.
-		const world = planet({ radius: 130, texture: textures.planetSurface(7), sun, atmosphere: '#7fb4ff' });
-		world.position.set(0, -150, -40);
+		// Right below the deck: it fills the view down through the glass floor,
+		// its horizon curving away in front.
+		const world = planet({ radius: 160, texture: textures.planetSurface(7), sun, atmosphere: '#7fb4ff' });
+		world.position.set(0, -185, -25);
 		world.rotation.x = 0.4;
 		space.add(world);
 		const satellite = moon({ size: 14, color: '#cfd3dc' });
@@ -126,20 +128,30 @@ function buildDeck(b, m) {
 		walkable: true,
 	});
 	for (const [w, d, x, z] of rimOf(FLOOR_WINDOW, 0.03)) b.add(box(w, 0.02, d), m.strip, { position: [x, 0.01, z] });
+	// Structural beams under the glass, so it still reads as a floor.
+	const beamY = -0.12;
+	for (let i = 1; i < 4; i++) {
+		const x = FLOOR_WINDOW.x - FLOOR_WINDOW.width / 2 + (FLOOR_WINDOW.width * i) / 4;
+		b.add(box(0.12, 0.2, FLOOR_WINDOW.depth), m.rib, { position: [x, beamY, FLOOR_WINDOW.z] });
+	}
+	for (let i = 1; i < 4; i++) {
+		const z = FLOOR_WINDOW.z - FLOOR_WINDOW.depth / 2 + (FLOOR_WINDOW.depth * i) / 4;
+		b.add(box(FLOOR_WINDOW.width, 0.2, 0.12), m.rib, { position: [FLOOR_WINDOW.x, beamY, z] });
+	}
 
 	// Ceiling with the skylight (the ceiling's local y runs from the front wall
 	// towards the back), crossed by ribs.
 	const skylightOpening = { x: SKYLIGHT.x, y: (SKYLIGHT.z - SKYLIGHT.depth / 2) - front, width: SKYLIGHT.width, height: SKYLIGHT.depth };
 	b.add(wallWithOpenings(halfWidth * 2, depth, [skylightOpening], 2), m.darkPanel, { position: [0, height, front], rotation: [Math.PI / 2, 0, 0] });
 	frameOpening(b, m, SKYLIGHT, height, 0.5);
-	for (let z = SKYLIGHT.z - SKYLIGHT.depth / 2 + 2.25; z < SKYLIGHT.z + SKYLIGHT.depth / 2 - 0.5; z += 2.25) {
+	for (let z = SKYLIGHT.z - SKYLIGHT.depth / 2 + 2.5; z < SKYLIGHT.z + SKYLIGHT.depth / 2 - 0.5; z += 2.5) {
 		b.add(roundedBox(SKYLIGHT.width, 0.25, 0.25, 0.08, 1), m.rib, { position: [SKYLIGHT.x, height + 0.3, z] });
 	}
-	for (const x of [-SKYLIGHT.width / 4, SKYLIGHT.width / 4]) {
+	for (const x of [-SKYLIGHT.width / 3, 0, SKYLIGHT.width / 3]) {
 		b.add(roundedBox(0.25, 0.25, SKYLIGHT.depth, 0.08, 1), m.rib, { position: [x, height + 0.32, SKYLIGHT.z] });
 	}
-	// Light lines on the solid ceiling, behind the skylight.
-	for (const x of [-5.5, 5.5]) b.add(box(0.12, 0.02, depth - 2), m.ceilingLight, { position: [x, height - 0.02, midZ] });
+	// Light lines on the solid ceiling, along the walls.
+	for (const x of [-7.1, 7.1]) b.add(box(0.12, 0.02, depth - 2), m.ceilingLight, { position: [x, height - 0.02, midZ] });
 
 	// Side walls: white panels between ribs, cyan strips along floor and top.
 	for (const side of [-1, 1]) {
