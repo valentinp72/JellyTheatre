@@ -84,9 +84,11 @@ function placeLibrary() {
 		world.premultiply(new THREE.Matrix4().copy(rigEl.object3D.matrixWorld).invert());
 		world.decompose(object.position, object.quaternion, object.scale);
 	} else {
-		object.position.set(0, 1.28, -2);
+		// 2 m away, or closer in a small room (scaled to look the same).
+		const distance = environments[currentEnvironment].layout.menuDistance ?? 2;
+		object.position.set(0, 1.28, -distance);
 		object.rotation.set(THREE.MathUtils.degToRad(-4), 0, 0);
-		object.scale.setScalar(1);
+		object.scale.setScalar(distance / 2);
 	}
 }
 

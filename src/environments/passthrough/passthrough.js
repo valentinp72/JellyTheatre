@@ -1,7 +1,6 @@
 // Passthrough: no virtual room, the screen floats in your real room
 // (immersive-ar session on Quest).
 
-import * as THREE from 'three';
 import { defineEnvironment } from '../kit/environment.js';
 
 export const passthroughLayout = {
@@ -12,11 +11,6 @@ export const passthroughLayout = {
 };
 
 defineEnvironment('passthrough', {
-	build(env) {
-		// Invisible floor (your real floor) to teleport on.
-		const floor = new THREE.Mesh(new THREE.PlaneGeometry(30, 30), new THREE.MeshBasicMaterial({ visible: false }));
-		floor.rotation.x = -Math.PI / 2;
-		floor.userData.teleport = true;
-		env.group.add(floor);
-	},
+	// Nothing to build: your real room shows through.
+	build() {},
 });

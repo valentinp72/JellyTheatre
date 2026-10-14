@@ -433,3 +433,342 @@ export function droplet() {
 		ctx.fill();
 	}, { repeat: false });
 }
+
+/**
+ * Pictures for frames, several per texture (an atlas of `cols` × `rows`
+ * cells, see atlasPlane in decor.js), so all of a room's pictures share one
+ * material. Kinds: 'landscape' (paintings), 'poster' (retro art posters,
+ * portrait cells), 'space' (nebulae and planets).
+ */
+export function pictures(kind, { cols = 4, rows = 2, seed = 1 } = {}) {
+	const portrait = kind === 'poster';
+	const cellW = portrait ? 192 : 256;
+	const cellH = portrait ? 288 : 192;
+	const texture = canvasTexture(`pictures-${kind}-${seed}`, cellW * cols, cellH * rows, (ctx) => {
+		const rand = random(seed);
+		for (let i = 0; i < cols * rows; i++) {
+			ctx.save();
+			ctx.translate((i % cols) * cellW, Math.floor(i / cols) * cellH);
+			ctx.beginPath();
+			ctx.rect(0, 0, cellW, cellH);
+			ctx.clip();
+			PICTURE_PAINTERS[kind](ctx, cellW, cellH, rand, i);
+			ctx.restore();
+		}
+	}, { repeat: false });
+	return { texture, cols, rows, aspect: cellW / cellH };
+}
+
+const hsl = (h, s, l, a = 1) => `hsla(${h}, ${s}%, ${l}%, ${a})`;
+
+const PICTURE_PAINTERS = {
+	// A mountain or lake landscape at dusk or day, a little painterly.
+	landscape(ctx, w, h, rand) {
+		const hue = 20 + rand() * 200;
+		const sky = ctx.createLinearGradient(0, 0, 0, h * 0.6);
+		sky.addColorStop(0, hsl(hue, 45, 35 + rand() * 25));
+		sky.addColorStop(1, hsl(hue + 30, 55, 70));
+		ctx.fillStyle = sky;
+		ctx.fillRect(0, 0, w, h);
+		ctx.fillStyle = hsl(45, 90, 88, 0.9);
+		ctx.beginPath();
+		ctx.arc(w * (0.2 + rand() * 0.6), h * (0.2 + rand() * 0.2), 10 + rand() * 12, 0, Math.PI * 2);
+		ctx.fill();
+		for (let layer = 0; layer < 3; layer++) {
+			ctx.fillStyle = hsl(hue + 160 + layer * 10, 25, 45 - layer * 13);
+			ctx.beginPath();
+			ctx.moveTo(0, h);
+			let y = h * (0.45 + layer * 0.12);
+			for (let x = 0; x <= w; x += w / 8) {
+				y = h * (0.42 + layer * 0.12) + (rand() - 0.5) * h * 0.18;
+				ctx.lineTo(x, y);
+			}
+			ctx.lineTo(w, h);
+			ctx.fill();
+		}
+		if (rand() > 0.4) {
+			ctx.fillStyle = hsl(hue, 40, 55, 0.7);
+			ctx.fillRect(0, h * 0.8, w, h * 0.2);
+		}
+		// Pines in front.
+		ctx.fillStyle = hsl(140, 30, 12);
+		for (let k = 0; k < 6; k++) {
+			const x = rand() * w;
+			const size = 18 + rand() * 30;
+			ctx.beginPath();
+			ctx.moveTo(x, h - size * 2.2);
+			ctx.lineTo(x + size * 0.5, h);
+			ctx.lineTo(x - size * 0.5, h);
+			ctx.fill();
+		}
+	},
+	// Retro art posters: bold geometric shapes and stripes, no words.
+	poster(ctx, w, h, rand, i) {
+		const hue = (i * 47 + rand() * 40) % 360;
+		ctx.fillStyle = hsl(hue, 45, 18);
+		ctx.fillRect(0, 0, w, h);
+		const style = i % 4;
+		if (style === 0) {
+			// Sunset with stripes.
+			for (let k = 0; k < 6; k++) {
+				ctx.fillStyle = hsl(hue + 20 + k * 8, 80, 60 - k * 5);
+				ctx.beginPath();
+				ctx.arc(w / 2, h * 0.55, w * 0.42 - k * 12, Math.PI, 0);
+				ctx.fill();
+			}
+			ctx.fillStyle = hsl(hue + 180, 40, 15);
+			ctx.fillRect(0, h * 0.55, w, h);
+		} else if (style === 1) {
+			// A rocket.
+			ctx.fillStyle = hsl(hue + 180, 70, 70);
+			ctx.beginPath();
+			ctx.moveTo(w / 2, h * 0.15);
+			ctx.quadraticCurveTo(w * 0.72, h * 0.45, w * 0.62, h * 0.7);
+			ctx.lineTo(w * 0.38, h * 0.7);
+			ctx.quadraticCurveTo(w * 0.28, h * 0.45, w / 2, h * 0.15);
+			ctx.fill();
+			ctx.fillStyle = hsl(30, 95, 60);
+			ctx.beginPath();
+			ctx.moveTo(w * 0.42, h * 0.7);
+			ctx.lineTo(w / 2, h * 0.88);
+			ctx.lineTo(w * 0.58, h * 0.7);
+			ctx.fill();
+			for (let k = 0; k < 40; k++) {
+				ctx.fillStyle = hsl(0, 0, 100, rand());
+				ctx.fillRect(rand() * w, rand() * h, 2, 2);
+			}
+		} else if (style === 2) {
+			// Overlapping circles.
+			for (let k = 0; k < 5; k++) {
+				ctx.fillStyle = hsl(hue + k * 40, 75, 55, 0.75);
+				ctx.beginPath();
+				ctx.arc(w * (0.25 + rand() * 0.5), h * (0.25 + rand() * 0.45), 25 + rand() * 45, 0, Math.PI * 2);
+				ctx.fill();
+			}
+		} else {
+			// A city skyline under a big moon.
+			ctx.fillStyle = hsl(hue + 40, 60, 80);
+			ctx.beginPath();
+			ctx.arc(w * 0.62, h * 0.32, w * 0.22, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.fillStyle = hsl(hue + 200, 35, 10);
+			for (let x = 0; x < w; x += 14 + rand() * 18) {
+				const top = h * (0.5 + rand() * 0.25);
+				ctx.fillRect(x, top, 12 + rand() * 14, h - top);
+			}
+		}
+		// A title band and a thin border, like a printed poster.
+		ctx.fillStyle = hsl(hue + 30, 30, 88, 0.85);
+		ctx.fillRect(w * 0.12, h * 0.89, w * 0.76, 6);
+		ctx.fillRect(w * 0.25, h * 0.92, w * 0.5, 4);
+		ctx.strokeStyle = hsl(0, 0, 95, 0.6);
+		ctx.lineWidth = 6;
+		ctx.strokeRect(8, 8, w - 16, h - 16);
+	},
+	// Nebulae, galaxies and planets.
+	space(ctx, w, h, rand, i) {
+		ctx.fillStyle = '#04050c';
+		ctx.fillRect(0, 0, w, h);
+		const hue = (i * 70 + rand() * 50) % 360;
+		for (let k = 0; k < 6; k++) {
+			const x = rand() * w;
+			const y = rand() * h;
+			const r = 40 + rand() * 90;
+			const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
+			gradient.addColorStop(0, hsl(hue + k * 25, 80, 60, 0.45));
+			gradient.addColorStop(1, hsl(hue + k * 25, 80, 30, 0));
+			ctx.fillStyle = gradient;
+			ctx.fillRect(0, 0, w, h);
+		}
+		for (let k = 0; k < 120; k++) {
+			ctx.fillStyle = hsl(0, 0, 100, 0.3 + rand() * 0.7);
+			ctx.fillRect(rand() * w, rand() * h, rand() > 0.9 ? 2 : 1, rand() > 0.9 ? 2 : 1);
+		}
+		if (i % 2 === 0) {
+			const x = w * (0.3 + rand() * 0.4);
+			const y = h * (0.3 + rand() * 0.4);
+			const r = 22 + rand() * 30;
+			const planet = ctx.createRadialGradient(x - r * 0.4, y - r * 0.4, r * 0.1, x, y, r);
+			planet.addColorStop(0, hsl(hue + 180, 60, 75));
+			planet.addColorStop(1, hsl(hue + 180, 50, 20));
+			ctx.fillStyle = planet;
+			ctx.beginPath();
+			ctx.arc(x, y, r, 0, Math.PI * 2);
+			ctx.fill();
+		}
+	},
+};
+
+/** Clock face: light dial with hour marks. */
+export function clockFace() {
+	return canvasTexture('clock-face', 256, 256, (ctx, w, h) => {
+		ctx.fillStyle = '#efe6d2';
+		ctx.beginPath();
+		ctx.arc(w / 2, h / 2, w / 2, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.strokeStyle = '#3a2a1a';
+		ctx.lineCap = 'round';
+		for (let i = 0; i < 60; i++) {
+			const a = (i / 60) * Math.PI * 2;
+			const long = i % 5 === 0;
+			ctx.lineWidth = long ? 7 : 2;
+			const r1 = w * (long ? 0.36 : 0.41);
+			const r2 = w * 0.45;
+			ctx.beginPath();
+			ctx.moveTo(w / 2 + Math.sin(a) * r1, h / 2 - Math.cos(a) * r1);
+			ctx.lineTo(w / 2 + Math.sin(a) * r2, h / 2 - Math.cos(a) * r2);
+			ctx.stroke();
+		}
+	}, { repeat: false });
+}
+
+/**
+ * Space station rack front (one panel, about 0.8 × 1 m): 'lockers' (stowage
+ * lockers with blue handles and labels) or 'cover' (fabric cover with velcro
+ * patches and stitching).
+ */
+export function rackPanel(variant = 'lockers') {
+	return canvasTexture(`rack-${variant}`, 256, 320, (ctx, w, h) => {
+		const rand = random(variant === 'lockers' ? 31 : 37);
+		ctx.fillStyle = variant === 'lockers' ? '#d8d6cf' : '#cfc8b6';
+		ctx.fillRect(0, 0, w, h);
+		ctx.strokeStyle = 'rgba(40, 45, 55, 0.55)';
+		ctx.lineWidth = 3;
+		ctx.strokeRect(2, 2, w - 4, h - 4);
+		if (variant === 'lockers') {
+			// 2 × 3 locker doors, each with a handle and a label.
+			const cols = 2;
+			const rows = 3;
+			const dw = (w - 24) / cols;
+			const dh = (h - 24) / rows;
+			for (let c = 0; c < cols; c++) {
+				for (let r = 0; r < rows; r++) {
+					const x = 12 + c * dw;
+					const y = 12 + r * dh;
+					ctx.fillStyle = '#e4e2dc';
+					ctx.fillRect(x + 4, y + 4, dw - 8, dh - 8);
+					ctx.strokeStyle = 'rgba(60, 65, 75, 0.6)';
+					ctx.lineWidth = 2;
+					ctx.strokeRect(x + 4, y + 4, dw - 8, dh - 8);
+					ctx.fillStyle = '#2f5fa8';
+					ctx.fillRect(x + dw / 2 - 22, y + dh - 26, 44, 9);
+					ctx.fillStyle = rand() > 0.5 ? '#f3f1e8' : '#f2d36b';
+					ctx.fillRect(x + 14, y + 14, 34 + rand() * 30, 12);
+					// Fasteners in the corners.
+					ctx.fillStyle = '#7a7f88';
+					for (const [fx, fy] of [[x + 10, y + dh - 12], [x + dw - 12, y + dh - 12], [x + dw - 12, y + 12]]) ctx.fillRect(fx, fy, 4, 4);
+				}
+			}
+		} else {
+			// Fabric with stitched seams and velcro patches.
+			ctx.strokeStyle = 'rgba(90, 80, 60, 0.5)';
+			ctx.setLineDash([6, 5]);
+			ctx.lineWidth = 2;
+			for (const y of [h * 0.33, h * 0.66]) {
+				ctx.beginPath();
+				ctx.moveTo(10, y);
+				ctx.lineTo(w - 10, y);
+				ctx.stroke();
+			}
+			ctx.setLineDash([]);
+			for (let i = 0; i < 7; i++) {
+				ctx.fillStyle = rand() > 0.5 ? '#ece6d4' : '#b8ae96';
+				ctx.fillRect(20 + rand() * (w - 70), 20 + rand() * (h - 60), 30 + rand() * 25, 14);
+			}
+			ctx.fillStyle = '#2f5fa8';
+			ctx.fillRect(w / 2 - 30, h - 30, 60, 8);
+		}
+		noise(ctx, w, h, 10, variant === 'lockers' ? 41 : 43);
+	}, { repeat: false });
+}
+
+/** Solar array: dark blue cells in a silver grid. */
+export function solarPanel() {
+	return canvasTexture('solar-panel', 256, 256, (ctx, w, h) => {
+		ctx.fillStyle = '#9aa2ad';
+		ctx.fillRect(0, 0, w, h);
+		const n = 8;
+		const cell = w / n;
+		for (let x = 0; x < n; x++) {
+			for (let y = 0; y < n; y++) {
+				const g = ctx.createLinearGradient(x * cell, y * cell, (x + 1) * cell, (y + 1) * cell);
+				g.addColorStop(0, '#1d3a6e');
+				g.addColorStop(1, '#0f2148');
+				ctx.fillStyle = g;
+				ctx.fillRect(x * cell + 2, y * cell + 2, cell - 4, cell - 4);
+			}
+		}
+	});
+}
+
+/**
+ * Space station wall panel, 1024 px for 2.6 × 2.6 m (ShapeGeometry UVs are
+ * in metres: use repeat 1/2.6 and offset 0.5 to center it): light grey
+ * plates with seams and fasteners, access hatches, labels, a vent.
+ */
+export function stationPanel() {
+	return canvasTexture('station-panel', 1024, 1024, (ctx, w, h) => {
+		const rand = random(53);
+		const px = w / 2.6; // pixels per metre
+		ctx.fillStyle = '#cdd1d7';
+		ctx.fillRect(0, 0, w, h);
+		// Plates: slightly different greys, seams and fasteners around them.
+		const plate = 0.52 * px;
+		for (let x = 0; x < w; x += plate) {
+			for (let y = 0; y < h; y += plate) {
+				ctx.fillStyle = `hsl(215, 8%, ${78 + rand() * 6}%)`;
+				ctx.fillRect(x + 2, y + 2, plate - 4, plate - 4);
+				ctx.fillStyle = 'rgba(40, 46, 56, 0.55)';
+				for (let i = 1; i < 6; i++) {
+					for (const [fx, fy] of [[x + (i * plate) / 6, y + 9], [x + (i * plate) / 6, y + plate - 9], [x + 9, y + (i * plate) / 6], [x + plate - 9, y + (i * plate) / 6]]) {
+						ctx.beginPath();
+						ctx.arc(fx, fy, 3, 0, Math.PI * 2);
+						ctx.fill();
+					}
+				}
+			}
+		}
+		ctx.strokeStyle = 'rgba(35, 40, 50, 0.7)';
+		ctx.lineWidth = 3;
+		for (let x = 0; x <= w; x += plate) {
+			ctx.beginPath();
+			ctx.moveTo(x, 0);
+			ctx.lineTo(x, h);
+			ctx.stroke();
+		}
+		for (let y = 0; y <= h; y += plate) {
+			ctx.beginPath();
+			ctx.moveTo(0, y);
+			ctx.lineTo(w, y);
+			ctx.stroke();
+		}
+		// Access hatches with quarter-turn fasteners, in the corners.
+		for (const [cx, cy] of [[0.35, 0.3], [2.1, 0.32], [0.4, 2.15], [2.05, 2.2]]) {
+			const x = cx * px;
+			const y = cy * px;
+			const size = 0.3 * px;
+			ctx.fillStyle = '#bfc4cb';
+			ctx.fillRect(x, y, size, size * 0.7);
+			ctx.strokeStyle = 'rgba(30, 35, 45, 0.8)';
+			ctx.lineWidth = 3;
+			ctx.strokeRect(x, y, size, size * 0.7);
+			ctx.fillStyle = '#4a5260';
+			for (const [fx, fy] of [[x + 10, y + 10], [x + size - 10, y + 10], [x + 10, y + size * 0.7 - 10], [x + size - 10, y + size * 0.7 - 10]]) {
+				ctx.beginPath();
+				ctx.arc(fx, fy, 6, 0, Math.PI * 2);
+				ctx.fill();
+			}
+		}
+		// A vent grille under the screen.
+		ctx.fillStyle = '#3a414c';
+		for (let i = 0; i < 14; i++) ctx.fillRect(w / 2 - 0.42 * px + i * 0.06 * px, h / 2 + 0.62 * px, 0.035 * px, 0.12 * px);
+		// Labels: white and yellow stickers, a blue stripe.
+		for (const [lx, ly, lw, color] of [[0.62, 0.62, 0.22, '#f4f2ea'], [1.75, 0.6, 0.18, '#f2d36b'], [0.6, 1.95, 0.16, '#f2d36b'], [1.8, 1.98, 0.22, '#f4f2ea'], [1.12, 2.08, 0.36, '#2f5fa8']]) {
+			ctx.fillStyle = color;
+			ctx.fillRect(lx * px, ly * px, lw * px, 0.05 * px);
+			ctx.fillStyle = 'rgba(30, 35, 45, 0.6)';
+			for (let i = 0; i < 4; i++) ctx.fillRect(lx * px + 6 + i * 0.045 * px, ly * px + 0.017 * px, 0.03 * px, 0.016 * px);
+		}
+		noise(ctx, w, h, 8, 59);
+	});
+}

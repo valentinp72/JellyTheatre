@@ -228,3 +228,20 @@ The steps the project went through, all done. Next features are in the
         picture, timing offset (also for PGS).
   - [x] Seek bar previews (Jellyfin trickplay thumbnails) and chapter marks.
   - [x] Settings panel in tabs (Playback, Subtitles, Display, View).
+  - [x] Teleport onto seats only (point at one); eye height up to +150 cm
+        for watching lying down.
+  - [x] Controls: smaller, with the time of day and the end time; subtitle
+        timing in the subtitle menu.
+  - [x] Episode cards with thumbnails, watched checks and progress; a check
+        on fully watched seasons.
+  - [x] Faster screen light (sampled every 50 ms).
+  - [x] Decoration kit (`kit/decor.js`): posters, popcorn machine and media
+        console in the home cinema; paintings, shelves, firewood, candles and
+        a working clock in the cabin.
+  - [x] Space station rebuilt after the ISS Cupola, in zero g: a small
+        faceted dome (six trapezoid windows, the screen set in the top panel
+        in place of the central window), a crew seat on rails across the base
+        ring,
+        lockers, handrails, laptops, a hatch and cargo bags behind, objects
+        drifting at about 1 cm/s that ease away before ever crossing between
+        the eyes and the screen.

@@ -1,6 +1,6 @@
 // Cinema seats: a seat model (upholstery + frame) drawn for every seat with
-// two instanced meshes, laid out in rows. Knows where every seat is, to snap
-// teleports onto them.
+// two instanced meshes, laid out in rows. Knows where every seat is: seats
+// are the teleport targets.
 
 import * as THREE from 'three';
 import { merge, roundedBox } from './geometry.js';
@@ -40,7 +40,7 @@ export function cinemaSeat({ width = 0.62 } = {}) {
 	};
 }
 
-/** Places a viewer can sit (sofas, recliners…): teleporting near one lands on it. */
+/** Places a viewer can sit (sofas, recliners…): the teleport targets. */
 export class SeatSpots {
 	/** @param {THREE.Vector3[]} seats floor positions where the viewer's rig goes */
 	constructor(seats = []) {
@@ -51,7 +51,6 @@ export class SeatSpots {
 		this.seats.push(...seats.flat());
 		return this;
 	}
-
 }
 
 export class SeatRows extends SeatSpots {

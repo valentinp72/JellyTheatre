@@ -92,15 +92,19 @@ ships.
 - Environments live in `src/environments/<name>/`, are declared with
   `defineEnvironment(name, { build(env) })` (src/environments/kit/environment.js)
   and registered in `src/environments/index.js` with a layout (screen anchor,
-  seat, `screenLight`, `ar` for passthrough). The player and menus are
+  seat, `screenLight`, `ar` for passthrough, `menuDistance` for small rooms). The player and menus are
   environment-agnostic.
 - Build environments from the kit (src/environments/kit/): `StaticBuilder`
-  (merges static geometry per material; `walkable` for teleport surfaces),
+  (merges static geometry per material),
   `textures` (procedural, cached; no image assets), `geometry` (rounded boxes,
   folded curtains, stairs, metre-tiled UVs), `SeatRows` + `cinemaSeat`
-  (instanced seats, teleport snapping), `SeatSpots` (snapping for props),
+  (instanced seats), `SeatSpots` (seats on props: the teleport targets),
   `props` (sofa, recliner, bookshelf, lamps, plant, table, rug, speaker,
-  `Placer`), `sky` (gradient sky, stars, planet, moon, mountains, lake,
+  `Placer`), `decor` (framed pictures from a `textures.pictures` atlas,
+  sideboard, popcorn machine, crates, woodpile, wall shelf, pendant lamp,
+  planter, handrail, cargo bag, static `StatusDisplays`; effects: `Candles`,
+  `WallClock`, `FloatingObjects` for zero g),
+  `sky` (gradient sky, stars, planet, moon, mountains, lake,
   pines), `Fire` (flames + flickering light; push into `env.effects`),
   `EnvironmentLighting` (house lights, fixtures and glows that dim, screen
   light, `onScreen` effects).
@@ -109,9 +113,11 @@ ships.
   illustration in `src/environments/icons.js`.
 - Quest budget for an environment: ~50 draw calls and ~150k triangles (it is
   drawn once per eye). Keep instanced models low-poly.
-- Teleport surfaces are meshes with `userData.teleport = true` (only faces
-  pointing up count); an environment may implement `snapTeleport(point)`.
-  No continuous locomotion: it makes the user sick.
+- Teleport only lands on seats (`env.seats`, exposed by `seatPositions()`):
+  the user points at one. An environment without seats has no teleport. No
+  continuous locomotion: it makes the user sick.
+- Keep decoration out of the line between the seats and the screen (pendant
+  lamps go to the sides).
 - In passthrough A-Frame sets the `ar-mode` state, *not* `vr-mode`: check both
   when testing for an immersive session.
 - The camera rig moves (walking, recentering, tilt): anything placed in world

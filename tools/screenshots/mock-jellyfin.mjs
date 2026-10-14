@@ -73,7 +73,7 @@ function movie({ name, year, minutes, genres, overview, source, chapters, trickp
 	};
 }
 
-function episode(series, season, i, { name, minutes }) {
+function episode(series, season, i, { name, minutes, frame }) {
 	return {
 		Id: `episode-${season}-${i + 1}`,
 		Name: name,
@@ -85,7 +85,10 @@ function episode(series, season, i, { name, minutes }) {
 		ParentIndexNumber: season,
 		IndexNumber: i + 1,
 		RunTimeTicks: minutes * 60 * TICKS,
-		ImageTags: {},
+		// A still of its own (the invented ones are drawn), else the series' backdrop.
+		ImageTags: frame !== false ? { Primary: 'still' } : {},
+		ParentBackdropItemId: series.Id,
+		ParentBackdropImageTags: ['backdrop'],
 		MediaSources: [{ Id: `episode-${season}-${i + 1}`, Name: 'Main', ...SOURCES.hd }],
 		UserData: {},
 	};
@@ -123,7 +126,7 @@ function openLibrary() {
 		extra: { image: film.poster ? 'poster' : 'frame' },
 	}, i));
 	const series = { Id: 'series-caminandes', Name: OPEN_SERIES.name, Type: 'Series', ProductionYear: OPEN_SERIES.year, ImageTags: { Primary: 'poster' }, Overview: OPEN_SERIES.overview, UserData: { UnplayedItemCount: 2 }, image: 'frame' };
-	const episodes = { 1: OPEN_SERIES.episodes.map((e, i) => episode(series, 1, i, e)) };
+	const episodes = { 1: OPEN_SERIES.episodes.map((e, i) => episode(series, 1, i, { ...e, frame: e.frame ? undefined : false })) };
 	episodes[1][0].UserData = { Played: true };
 	episodes[1][1].UserData = { PlaybackPositionTicks: 60 * TICKS, PlayedPercentage: 40 };
 	return { movies, series, episodes, inProgress: episodes[1][1], favorites: [movies[2], series] };
@@ -174,6 +177,17 @@ function framePosterSvg(item, jpeg) {
 	</svg>`;
 }
 
+/** An invented episode's still: a gradient, a horizon and its number. */
+function episodeStillSvg(item) {
+	const hue = (item.IndexNumber * 47 + item.ParentIndexNumber * 110) % 360;
+	return `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270" viewBox="0 0 480 270">
+		<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="hsl(${hue}, 45%, 55%)"/><stop offset="1" stop-color="hsl(${(hue + 40) % 360}, 50%, 18%)"/></linearGradient></defs>
+		<rect width="480" height="270" fill="url(#g)"/>
+		<circle cx="${120 + (item.IndexNumber * 61) % 260}" cy="95" r="34" fill="hsl(${(hue + 180) % 360}, 70%, 75%)" opacity="0.8"/>
+		<path d="M0 200 L90 150 L170 185 L260 130 L360 175 L480 140 L480 270 L0 270 Z" fill="#05060a" opacity="0.6"/>
+	</svg>`;
+}
+
 /** A trickplay tile: 5 × 5 numbered frames (320 × 180 each). */
 function trickplayTile(tile) {
 	const frames = [];
@@ -196,11 +210,24 @@ function trickplayTile(tile) {
  */
 export function startMockJellyfin({ port = 8096, mediaDir, library = 'invented' }) {
 	const { movies, series, episodes, inProgress, favorites } = library === 'open' ? openLibrary() : inventedLibrary();
-	const seasons = Object.keys(episodes).map((n) => ({ Id: `season-${n}`, Name: `Season ${n}`, IndexNumber: Number(n), SeriesId: series.Id, Type: 'Season' }));
+	const seasons = Object.keys(episodes).map((n) => ({
+		Id: `season-${n}`,
+		Name: `Season ${n}`,
+		IndexNumber: Number(n),
+		SeriesId: series.Id,
+		Type: 'Season',
+		UserData: { Played: episodes[n].every((e) => e.UserData.Played), UnplayedItemCount: episodes[n].filter((e) => !e.UserData.Played).length },
+	}));
 	const allItems = [...movies, series, ...Object.values(episodes).flat()];
 	const genres = [...new Set(movies.flatMap((m) => m.Genres))];
-	const poster = (item) => {
-		if (library !== 'open') return [posterSvg(item.colors ? item : series), 'image/svg+xml'];
+	const poster = (item, type) => {
+		const still = item.Type === 'Episode' && type === 'Primary';
+		if (library !== 'open') return [still ? episodeStillSvg(item) : posterSvg(item.colors ? item : series), 'image/svg+xml'];
+		if (still || type === 'Backdrop') {
+			// Episode stills and the series backdrop (frames/<name>.jpg).
+			const file = path.join(mediaDir, 'frames', `${slug(still ? item.Name : series.Name)}.jpg`);
+			return fs.existsSync(file) ? [fs.readFileSync(file), 'image/jpeg'] : [undefined];
+		}
 		const image = item.image ? item : series;
 		const file = path.join(mediaDir, image.image === 'poster' ? 'posters' : 'frames', `${slug(image.Name)}.jpg`);
 		if (!fs.existsSync(file)) return [undefined, 'image/jpeg'];
@@ -234,8 +261,8 @@ export function startMockJellyfin({ port = 8096, mediaDir, library = 'invented' 
 		req.on('data', (chunk) => { body += chunk; });
 		req.on('end', () => {
 			if (p.includes('/Images/')) {
-				const id = p.split('/')[2];
-				const [image, type] = poster(allItems.find((i) => i.Id === id) ?? series);
+				const [, , id, , imageType] = p.split('/');
+				const [image, type] = poster(allItems.find((i) => i.Id === id) ?? series, imageType);
 				return image ? send(200, image, type) : send(404);
 			}
 			if (/\/stream\.\w+$/.test(p)) return file('test.mp4', 'video/mp4');

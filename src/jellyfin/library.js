@@ -182,6 +182,22 @@ export function posterUrl(api, item, height = 720) {
 	return api.getUri(`/Items/${id}/Images/Primary`, { fillHeight: height, quality: 90, tag });
 }
 
+/**
+ * Landscape picture of an episode: its own, else the series' thumb or
+ * backdrop. Null without any.
+ */
+export function episodeImageUrl(api, episode, width = 480) {
+	const options = { fillWidth: width, quality: 85 };
+	if (episode.ImageTags?.Primary) return api.getUri(`/Items/${episode.Id}/Images/Primary`, { ...options, tag: episode.ImageTags.Primary });
+	if (episode.ParentThumbItemId && episode.ParentThumbImageTag) {
+		return api.getUri(`/Items/${episode.ParentThumbItemId}/Images/Thumb`, { ...options, tag: episode.ParentThumbImageTag });
+	}
+	if (episode.ParentBackdropItemId && episode.ParentBackdropImageTags?.[0]) {
+		return api.getUri(`/Items/${episode.ParentBackdropItemId}/Images/Backdrop/0`, { ...options, tag: episode.ParentBackdropImageTags[0] });
+	}
+	return null;
+}
+
 export function episodeNumber(item) {
 	if (item.ParentIndexNumber == null || item.IndexNumber == null) return '';
 	return `S${item.ParentIndexNumber}:E${item.IndexNumber}`;

@@ -11,6 +11,7 @@ import { describeMedia, describeTranscodeReason } from '../jellyfin/device-profi
 import { createSources, episodeNumber, resumeSeconds, runtimeLabel, SORTS } from '../jellyfin/library.js';
 import { resolvePlayback } from '../jellyfin/playback.js';
 import { formatTime } from './player-controls.js';
+import './episode-card.js';
 import { PLAYBACK_COLORS } from './poster.js';
 import { truncate } from './text.js';
 import { COLORS, entity, setInteractiveVisible, whenLoaded } from './widgets.js';
@@ -33,8 +34,10 @@ const GENRE_COLS = 5;
 const GENRE_ROWS = 7;
 const GENRES_PER_PAGE = GENRE_COLS * GENRE_ROWS;
 
-const EPISODE_ROWS = 6;
-const EPISODES_PER_PAGE = EPISODE_ROWS * 2;
+const EPISODE_COLS = 5;
+const EPISODES_PER_PAGE = EPISODE_COLS * 2;
+const EPISODE_GAP = 0.035;
+const EPISODE_ROW_PITCH = 0.27;
 const SEASON_TAB_GAP = 0.012;
 const SEASON_ARROW_W = 0.07;
 
@@ -266,21 +269,22 @@ AFRAME.registerComponent('library-panel', {
 		this.seasonRow = entity({ position: `0 ${CONTENT_TOP - 0.39} 0` });
 		this.series.appendChild(this.seasonRow);
 
-		const columnW = (maxWidth - 0.02) / 2;
+		// Episode cards, a page at a time.
+		const cardW = (maxWidth - (EPISODE_COLS - 1) * EPISODE_GAP) / EPISODE_COLS;
+		const firstY = CONTENT_TOP - 0.45 - (cardW * 9) / 16 / 2;
 		this.episodeEls = [];
 		for (let i = 0; i < EPISODES_PER_PAGE; i++) {
-			const col = Math.floor(i / EPISODE_ROWS);
-			const row = i % EPISODE_ROWS;
-			const el = this.button(
-				{ label: '', width: columnW, height: 0.062, fontSize: 0.024, align: 'left' },
-				x + columnW / 2 + col * (columnW + 0.02),
-				CONTENT_TOP - 0.48 - row * 0.072,
-				() => {
-					const episode = this.top().episodes?.[i];
-					if (episode) this.open(episode);
-				},
-				this.series,
-			);
+			const col = i % EPISODE_COLS;
+			const row = Math.floor(i / EPISODE_COLS);
+			const el = entity({
+				position: `${x + cardW / 2 + col * (cardW + EPISODE_GAP)} ${firstY - row * EPISODE_ROW_PITCH} 0.002`,
+				'ui-episode': { width: cardW },
+			});
+			el.addEventListener('click', () => {
+				const episode = this.top().episodes?.[i];
+				if (episode) this.open(episode);
+			});
+			this.series.appendChild(el);
 			this.episodeEls.push(el);
 		}
 		const pagerY = -TOP + 0.09;
@@ -792,7 +796,7 @@ AFRAME.registerComponent('library-panel', {
 		view.episodes = result.items;
 		this.episodeEls.forEach((el, i) => {
 			const episode = result.items[i];
-			if (episode) el.setAttribute('ui-button', 'label', truncate(episodeLabel(episode), 52));
+			if (episode) whenLoaded(el, () => el.components['ui-episode'].setItem(this.api, episode));
 			this.show(el, Boolean(episode));
 		});
 		const pageCount = pages(result.total, EPISODES_PER_PAGE);
@@ -805,7 +809,9 @@ AFRAME.registerComponent('library-panel', {
 	renderSeasonTabs(view) {
 		this.seasonRow.replaceChildren();
 		const labels = view.seasons.map(seasonLabel);
-		const widths = labels.map((label) => 0.05 + label.length * 0.017);
+		// Fully watched seasons get a check (room for it on the tab).
+		const watched = view.seasons.map((season) => Boolean(season.UserData?.Played));
+		const widths = labels.map((label, i) => 0.05 + label.length * 0.017 + (watched[i] ? 0.035 : 0));
 		const available = RIGHT - this.seriesX;
 		const total = widths.reduce((sum, w) => sum + w + SEASON_TAB_GAP, -SEASON_TAB_GAP);
 		const scrolling = total > available;
@@ -836,7 +842,7 @@ AFRAME.registerComponent('library-panel', {
 			x += SEASON_ARROW_W + SEASON_TAB_GAP;
 		}
 		for (let index = start; index < end; index++) {
-			this.button(
+			const tab = this.button(
 				{ ...tabOptions, label: labels[index], width: widths[index], active: index === view.seasonIndex },
 				x + widths[index] / 2,
 				0,
@@ -847,6 +853,9 @@ AFRAME.registerComponent('library-panel', {
 				},
 				this.seasonRow,
 			);
+			if (watched[index]) {
+				tab.appendChild(entity({ position: `${widths[index] / 2 - 0.022} 0 0.004`, 'ui-icon': 'name: check; size: 0.022; color: #7bd88f' }));
+			}
 			x += widths[index] + SEASON_TAB_GAP;
 		}
 		if (scrolling) {
@@ -864,12 +873,4 @@ function seasonLabel(season) {
 	if (season.IndexNumber === 0) return 'Specials';
 	if (season.IndexNumber != null) return `S${String(season.IndexNumber).padStart(2, '0')}`;
 	return truncate(season.Name, 12);
-}
-
-function episodeLabel(episode) {
-	const number = episode.IndexNumber != null ? `${episode.IndexNumber}. ` : '';
-	let status = runtimeLabel(episode);
-	if (episode.UserData?.Played) status = 'Watched';
-	else if (episode.UserData?.PlayedPercentage) status = `${Math.round(episode.UserData.PlayedPercentage)}% watched`;
-	return `${number}${episode.Name}${status ? `  ·  ${status}` : ''}`;
 }

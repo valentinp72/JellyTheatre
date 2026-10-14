@@ -118,7 +118,7 @@ export const SETTING_DEFINITIONS = [
 		category: 'view',
 		type: 'action',
 		label: 'Back to my seat',
-		description: 'Push a stick forward to aim and release to teleport; right stick left/right turns. Shortcut: click the left stick.',
+		description: 'To change seats, push a stick forward, point at a seat and release; right stick left/right turns. Shortcut: click the left stick.',
 		action: 'Go back',
 	},
 	{
@@ -126,12 +126,13 @@ export const SETTING_DEFINITIONS = [
 		category: 'view',
 		type: 'range',
 		default: 0,
+		// Up to +1.5 m: lying down, the head is about a metre below a seated one.
 		min: -0.5,
-		max: 0.5,
-		step: 0.05,
+		max: 1.5,
+		step: 0.1,
 		format: (value) => `${value > 0 ? '+' : ''}${Math.round(value * 100)} cm`,
 		label: 'Eye height',
-		description: 'Raise or lower your view, if you feel too low or too high in your seat.',
+		description: 'Raise or lower your view, if you feel too low or too high in your seat (lying down: about +100 cm).',
 	},
 	{
 		name: 'resetScreen',

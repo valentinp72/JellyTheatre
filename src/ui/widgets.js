@@ -228,7 +228,7 @@ export function entity(attributes = {}, children = []) {
 	// Mark interactive widgets now: their components initialize asynchronously.
 	const progress = attributes['ui-progress'];
 	const interactiveProgress = typeof progress === 'string' ? /interactive:\s*true/.test(progress) : progress?.interactive;
-	if ('ui-button' in attributes || 'ui-poster' in attributes || interactiveProgress) el.dataset.interactive = '';
+	if ('ui-button' in attributes || 'ui-poster' in attributes || 'ui-episode' in attributes || interactiveProgress) el.dataset.interactive = '';
 	for (const child of children) el.appendChild(child);
 	return el;
 }

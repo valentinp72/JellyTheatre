@@ -1,33 +1,41 @@
-// Space station lounge: an observation deck with a skylight over almost the
-// whole ceiling (stars, a moon) and a glass floor under almost the whole deck,
-// with a slowly turning planet below: the couches stand on an island over
-// space. The screen hangs on a solid front wall;
-// lounge couches, metal deck plates and cyan light strips inside.
+// Space station Cupola, in orbit and in zero gravity, after the ISS's: a
+// small faceted dome. Six big trapezoid windows slope from a hexagonal base
+// ring towards the top panel, where the screen is set (in place of the real
+// Cupola's central window): around the picture, the planet below, the moon,
+// the stars and the station's solar arrays. The viewer floats in a crew seat clamped on two rails across
+// the base ring; behind, a short skirt with lockers, a hatch and cargo bags.
+// A few things drift slowly in the air, never between the eyes and the
+// screen.
 
 import * as THREE from 'three';
 import { StaticBuilder } from '../kit/builder.js';
+import { cargoBag, FloatingObjects, handrail, StatusDisplays } from '../kit/decor.js';
 import { defineEnvironment } from '../kit/environment.js';
-import { box, roundedBox, tiledBox, wallWithOpenings } from '../kit/geometry.js';
-import { EnvironmentLighting, glowMaterial } from '../kit/lighting.js';
-import { plant, sofa } from '../kit/props.js';
+import { box, roundedBox } from '../kit/geometry.js';
+import { EnvironmentLighting } from '../kit/lighting.js';
+import { Placer } from '../kit/props.js';
 import { SeatSpots } from '../kit/seating.js';
 import { gradientSky, moon, planet, starfield } from '../kit/sky.js';
 import * as textures from '../kit/textures.js';
 
-// A tall deck, so the screen can fill most of the front wall.
-const DECK = { halfWidth: 8, front: -9.5, back: 6, height: 7.5 };
-const SCREEN = { x: 0, y: 3.75, z: -9.35, maxWidth: 11.5, maxHeight: 6.47 };
-const COUCH_Z = -1;
-// Openings: the skylight (in the ceiling) and the floor window, in world x/z.
-const SKYLIGHT = { x: 0, z: -1.75, width: 13, depth: 12.5 };
-// A metal walkway stays along the walls; everything else is glass.
-const FLOOR_WINDOW = { x: 0, z: -1.75, width: 13, depth: 12.5 };
-const FLOOR_THICKNESS = 0.45;
+// The dome's axis runs along -z at eye height. Hexagons are given by their
+// circumradius; the base ring is at z = 0, the top panel (the screen) in front.
+const CUPOLA = { axisY: 1.35, base: 1.6, top: 1.25, depth: 1.25, skirt: 1.0 };
+// The viewer's seat (rig, feet) at the base: the eyes end up on the axis.
+const SEAT = { x: 0, y: 0.15, z: 0.25 };
+const EYE = new THREE.Vector3(0, CUPOLA.axisY, SEAT.z);
+const RAIL_Y = 0.32;
+// On the top panel: the largest 16:9 picture (with its border) that stays
+// clear of the struts along the panel's edges.
+const SCREEN = { x: 0, y: CUPOLA.axisY, z: -CUPOLA.depth + 0.018, maxWidth: 1.65, maxHeight: 0.928 };
+const SCREEN_BORDER = 0.035;
 
 export const stationLayout = {
 	screen: { position: { x: SCREEN.x, y: SCREEN.y, z: SCREEN.z }, maxWidth: SCREEN.maxWidth, maxHeight: SCREEN.maxHeight },
-	seat: { x: 0, y: 0.25, z: COUCH_Z },
+	seat: { x: SEAT.x, y: SEAT.y, z: SEAT.z },
 	screenLight: true,
+	// The library, when not on the screen, stays inside the dome.
+	menuDistance: 1.1,
 };
 
 defineEnvironment('station', {
@@ -36,165 +44,249 @@ defineEnvironment('station', {
 		const lambert = (options) => new THREE.MeshLambertMaterial(options);
 		const basic = (options) => new THREE.MeshBasicMaterial(options);
 		const m = {
-			deck: lambert({ map: textures.deckPlates('#6a7078') }),
-			panel: lambert({ color: '#c9ced6' }),
-			darkPanel: lambert({ color: '#2a2f38', side: THREE.DoubleSide }),
-			rib: lambert({ color: '#8d939c' }),
-			couch: lambert({ map: textures.fabric('#d9dde4') }),
-			legs: lambert({ color: '#3a3f48' }),
-			pot: lambert({ color: '#e6e8ec' }),
-			leaves: lambert({ color: '#4e8a5a', flatShading: true }),
-			glass: basic({ color: '#7fb4ff', transparent: true, opacity: 0.07, depthWrite: false }),
+			frame: lambert({ color: '#d9dbe0', side: THREE.DoubleSide }),
+			panel: lambert({ map: textures.stationPanel(), side: THREE.DoubleSide }),
+			strut: lambert({ color: '#a7adb6' }),
+			lockers: lambert({ map: textures.rackPanel('lockers'), side: THREE.DoubleSide }),
+			dark: lambert({ color: '#2a2f38', side: THREE.DoubleSide }),
+			metal: lambert({ color: '#7d838c' }),
+			seat: lambert({ map: textures.fabric('#3c4a5e') }),
+			handrail: lambert({ color: '#d9b84a' }),
+			bag: lambert({ map: textures.fabric('#d8d0b8') }),
+			strap: lambert({ color: '#2f4f8a' }),
+			glass: basic({ color: '#9fc4ff', transparent: true, opacity: 0.05, depthWrite: false, side: THREE.DoubleSide }),
 			// Fixtures.
-			strip: basic({ color: '#4fd8ff' }),
-			ceilingLight: basic({ color: '#e8f4ff' }),
-			stripGlow: glowMaterial(textures.glow(), '#4fd8ff', 0.25),
-			frameGlow: basic({ color: '#4fd8ff' }),
+			light: basic({ color: '#f2f6ff' }),
 		};
+		const displays = new StatusDisplays();
 
-		buildDeck(b, m);
-		const seats = new SeatSpots();
-		// Three couches on a low platform, the side ones turned towards the screen.
-		b.add(tiledBox(9, 0.25, 3.2, 2), m.deck, { position: [0, 0.125, COUCH_Z + 0.4], walkable: true });
-		b.add(box(9, 0.02, 0.03), m.strip, { position: [0, 0.03, COUCH_Z - 1.21] });
-		const couchMaterials = { fabric: m.couch, legs: m.legs };
-		seats.add(sofa(b, couchMaterials, [0, 0.25, COUCH_Z], 0, { seats: 3 }));
-		seats.add(sofa(b, couchMaterials, [-3.2, 0.25, COUCH_Z + 0.5], 0.35, { seats: 2 }));
-		seats.add(sofa(b, couchMaterials, [3.2, 0.25, COUCH_Z + 0.5], -0.35, { seats: 2 }));
-		env.seats = seats;
-		plant(b, m, [-6.8, 0, 4.8], { size: 1.4, seed: 4 });
-		plant(b, m, [6.8, 0, 4.8], { size: 1.4, seed: 6 });
-
-		// A thin glowing frame around the screen, on the front wall.
-		const fw = SCREEN.maxWidth + 0.2;
-		const fh = SCREEN.maxHeight + 0.2;
-		for (const [w, h, x, y] of [[fw, 0.04, 0, fh / 2], [fw, 0.04, 0, -fh / 2], [0.04, fh, fw / 2, 0], [0.04, fh, -fw / 2, 0]]) {
-			b.add(box(w, h, 0.04), m.frameGlow, { position: [SCREEN.x + x, SCREEN.y + y, SCREEN.z - 0.03] });
-		}
-		b.add(new THREE.PlaneGeometry(SCREEN.maxWidth + 0.1, SCREEN.maxHeight + 0.1), basic({ color: '#020306' }), { position: [SCREEN.x, SCREEN.y, SCREEN.z - 0.05] });
+		buildDome(b, m);
+		buildSkirt(b, m, displays);
+		buildSeat(b, m);
+		env.seats = new SeatSpots([new THREE.Vector3(SEAT.x, SEAT.y, SEAT.z)]);
 		env.group.add(b.build());
 
-		// Space all around: stars, a moon above, a planet below.
-		const space = new THREE.Group();
-		space.add(gradientSky([[0, '#020309'], [0.5, '#05060f'], [1, '#020309']], 400));
-		space.add(starfield({ count: 2500, radius: 380, seed: 11 }));
-		const sun = new THREE.Vector3(0.6, 0.7, 0.35);
-		// Right below the deck: it fills the view down through the glass floor,
-		// its horizon curving away in front.
-		const world = planet({ radius: 160, texture: textures.planetSurface(7), sun, atmosphere: '#7fb4ff' });
-		world.position.set(0, -185, -25);
-		world.rotation.x = 0.4;
-		space.add(world);
-		const satellite = moon({ size: 14, color: '#cfd3dc' });
-		satellite.position.set(70, 230, -60);
-		space.add(satellite);
+		const { group: space, surface } = outside();
 		env.group.add(space);
-		const surface = world.userData.surface;
 		env.onTick = (delta) => {
-			// One turn every ~20 minutes.
+			// The planet turns once every ~20 minutes.
 			surface.rotation.y += (Math.min(delta, 100) / 1000) * 0.005;
 		};
+		env.effects = [floaters(env.group)];
 
 		const lighting = new EnvironmentLighting(env.group, {
 			sceneEl: env.sceneEl,
-			screenLightPosition: new THREE.Vector3(0, SCREEN.y - 0.3, SCREEN.z + 1.5),
-			screenLightDistance: 18,
-			ambient: '#d6e6ff',
-			sky: '#cfe2ff',
-			ground: '#1a2030',
+			screenLightPosition: new THREE.Vector3(0, SCREEN.y, SCREEN.z + 0.6),
+			screenLightDistance: 4,
+			ambient: '#e6eeff',
+			sky: '#eef3ff',
+			ground: '#3a4252',
 		});
-		lighting.addFixture(m.ceilingLight);
-		// Light strips and the screen frame stay faintly on: it's a spaceship.
-		lighting.addFixture(m.strip, { min: 0.3 });
-		lighting.addGlow(m.stripGlow, { min: 0.3 });
-		lighting.addFixture(m.frameGlow, { min: 0.25 });
+		lighting.addFixture(m.light, { min: 0.12 });
+		lighting.addFixture(displays.material, { min: 0.35 });
 		env.lighting = lighting;
 	},
 });
 
-function buildDeck(b, m) {
-	const { halfWidth, front, back, height } = DECK;
-	const depth = back - front;
-	const midZ = (front + back) / 2;
+/** Hexagon vertex k (0–5) of circumradius r at depth z: a flat edge at the top and bottom. */
+function vertex(k, r, z) {
+	const theta = Math.PI / 6 + (k * Math.PI) / 3;
+	return new THREE.Vector3(Math.sin(theta) * r, CUPOLA.axisY + Math.cos(theta) * r, z);
+}
 
-	// Floor with the window opening (the floor's local y runs from the back
-	// wall towards the front), the opening's thick edges and its glass.
-	const floorOpening = { x: FLOOR_WINDOW.x, y: back - (FLOOR_WINDOW.z + FLOOR_WINDOW.depth / 2), width: FLOOR_WINDOW.width, height: FLOOR_WINDOW.depth };
-	const floor = wallWithOpenings(halfWidth * 2, depth, [floorOpening], 2);
-	b.add(floor, m.deck, { position: [0, 0, back], rotation: [-Math.PI / 2, 0, 0], walkable: true });
-	frameOpening(b, m, FLOOR_WINDOW, 0, -FLOOR_THICKNESS);
-	b.add(new THREE.PlaneGeometry(FLOOR_WINDOW.width, FLOOR_WINDOW.depth), m.glass, {
-		position: [FLOOR_WINDOW.x, -0.02, FLOOR_WINDOW.z],
-		rotation: [-Math.PI / 2, 0, 0],
-		walkable: true,
-	});
-	for (const [w, d, x, z] of rimOf(FLOOR_WINDOW, 0.03)) b.add(box(w, 0.02, d), m.strip, { position: [x, 0.01, z] });
-	// Structural beams under the glass, so it still reads as a floor.
-	const beamY = -0.12;
-	for (let i = 1; i < 4; i++) {
-		const x = FLOOR_WINDOW.x - FLOOR_WINDOW.width / 2 + (FLOOR_WINDOW.width * i) / 4;
-		b.add(box(0.12, 0.2, FLOOR_WINDOW.depth), m.rib, { position: [x, beamY, FLOOR_WINDOW.z] });
-	}
-	for (let i = 1; i < 4; i++) {
-		const z = FLOOR_WINDOW.z - FLOOR_WINDOW.depth / 2 + (FLOOR_WINDOW.depth * i) / 4;
-		b.add(box(FLOOR_WINDOW.width, 0.2, 0.12), m.rib, { position: [FLOOR_WINDOW.x, beamY, z] });
-	}
+/** A quad (p0 p1 p2 p3, in order around it) with 0–1 UVs. */
+function quad(p0, p1, p2, p3) {
+	const geometry = new THREE.BufferGeometry();
+	geometry.setAttribute('position', new THREE.Float32BufferAttribute([...p0.toArray(), ...p1.toArray(), ...p2.toArray(), ...p3.toArray()], 3));
+	geometry.setAttribute('uv', new THREE.Float32BufferAttribute([0, 0, 1, 0, 1, 1, 0, 1], 2));
+	geometry.setIndex([0, 1, 2, 0, 2, 3]);
+	geometry.computeVertexNormals();
+	return geometry;
+}
 
-	// Ceiling with the skylight (the ceiling's local y runs from the front wall
-	// towards the back), crossed by ribs.
-	const skylightOpening = { x: SKYLIGHT.x, y: (SKYLIGHT.z - SKYLIGHT.depth / 2) - front, width: SKYLIGHT.width, height: SKYLIGHT.depth };
-	b.add(wallWithOpenings(halfWidth * 2, depth, [skylightOpening], 2), m.darkPanel, { position: [0, height, front], rotation: [Math.PI / 2, 0, 0] });
-	frameOpening(b, m, SKYLIGHT, height, 0.5);
-	for (let z = SKYLIGHT.z - SKYLIGHT.depth / 2 + 2.5; z < SKYLIGHT.z + SKYLIGHT.depth / 2 - 0.5; z += 2.5) {
-		b.add(roundedBox(SKYLIGHT.width, 0.25, 0.25, 0.08, 1), m.rib, { position: [SKYLIGHT.x, height + 0.3, z] });
-	}
-	for (const x of [-SKYLIGHT.width / 3, 0, SKYLIGHT.width / 3]) {
-		b.add(roundedBox(0.25, 0.25, SKYLIGHT.depth, 0.08, 1), m.rib, { position: [x, height + 0.32, SKYLIGHT.z] });
-	}
-	// Light lines on the solid ceiling, along the walls.
-	for (const x of [-7.1, 7.1]) b.add(box(0.12, 0.02, depth - 2), m.ceilingLight, { position: [x, height - 0.02, midZ] });
+/** A bar between two points. */
+function bar(b, material, from, to, radius = 0.035, sides = 8) {
+	const geometry = new THREE.CylinderGeometry(radius, radius, from.distanceTo(to), sides);
+	geometry.applyQuaternion(new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), to.clone().sub(from).normalize()));
+	b.add(geometry, material, { position: from.clone().add(to).multiplyScalar(0.5).toArray() });
+}
 
-	// Side walls: white panels between ribs, cyan strips along floor and top.
+/** The dome: six trapezoid windows in their frames, and the top panel with the screen. */
+function buildDome(b, m) {
+	const { base, top, depth } = CUPOLA;
+	const zTop = -depth;
+	for (let k = 0; k < 6; k++) {
+		const outer = [vertex(k, base, 0), vertex(k + 1, base, 0), vertex(k + 1, top, zTop), vertex(k, top, zTop)];
+		// The window: the face shrunk towards its center, a frame around it.
+		const center = outer.reduce((sum, p) => sum.add(p), new THREE.Vector3()).multiplyScalar(0.25);
+		const inner = outer.map((p) => center.clone().lerp(p, 0.84));
+		b.add(quad(...inner), m.glass);
+		for (let i = 0; i < 4; i++) b.add(quad(outer[i], outer[(i + 1) % 4], inner[(i + 1) % 4], inner[i]), m.frame);
+		// Struts along the edges.
+		bar(b, m.strut, vertex(k, base, 0), vertex(k, top, zTop), 0.04);
+		bar(b, m.strut, vertex(k, base, 0), vertex(k + 1, base, 0), 0.05);
+		bar(b, m.strut, vertex(k, top, zTop), vertex(k + 1, top, zTop), 0.04);
+	}
+	// Top panel: station plating, the screen in a thin metal border on it,
+	// handrails on both sides.
+	const plate = new THREE.Shape();
+	for (let k = 0; k <= 6; k++) {
+		const p = vertex(k, top, 0);
+		if (k === 0) plate.moveTo(p.x, p.y - CUPOLA.axisY);
+		else plate.lineTo(p.x, p.y - CUPOLA.axisY);
+	}
+	const plating = new THREE.ShapeGeometry(plate);
+	// Its UVs are in metres: the texture covers 2.6 m, centered.
+	const uv = plating.attributes.uv;
+	for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) / 2.6 + 0.5, uv.getY(i) / 2.6 + 0.5);
+	b.add(plating, m.panel, { position: [0, CUPOLA.axisY, zTop] });
+	const bw = SCREEN.maxWidth + 2 * SCREEN_BORDER;
+	const bh = SCREEN.maxHeight + 2 * SCREEN_BORDER;
+	// The border is a dark plate under the picture: also the black bars of wide films.
+	b.add(roundedBox(bw, bh, 0.02, 0.012, 1), m.dark, { position: [SCREEN.x, SCREEN.y, zTop + 0.006] });
 	for (const side of [-1, 1]) {
-		const x = side * halfWidth;
-		const inward = -side;
-		b.add(new THREE.PlaneGeometry(depth, height), m.panel, { position: [x, height / 2, midZ], rotation: [0, inward * Math.PI / 2, 0] });
-		for (let z = front + 2; z < back; z += 2.5) {
-			b.add(roundedBox(0.3, height, 0.4, 0.08, 1), m.rib, { position: [x + inward * 0.15, height / 2, z] });
-		}
-		for (const y of [0.15, height - 0.35]) {
-			b.add(box(0.04, 0.05, depth - 0.5), m.strip, { position: [x + inward * 0.33, y, midZ] });
-			b.add(new THREE.PlaneGeometry(depth - 0.5, 0.6), m.stripGlow, { position: [x + inward * 0.31, y, midZ], rotation: [0, inward * Math.PI / 2, 0] });
-		}
+		const x = side * (bw / 2 + 0.11);
+		handrail(b, m, [x, CUPOLA.axisY - 0.28, zTop + 0.09], [x, CUPOLA.axisY + 0.28, zTop + 0.09], { offset: new THREE.Vector3(0, 0, -0.08) });
 	}
-	// Front wall (the screen hangs on it) and back wall.
-	b.add(new THREE.PlaneGeometry(halfWidth * 2, height), m.panel, { position: [0, height / 2, front] });
-	for (const x of [-halfWidth + 1, halfWidth - 1]) {
-		b.add(roundedBox(0.3, height, 0.4, 0.08, 1), m.rib, { position: [x, height / 2, front + 0.15] });
+	// Handrails around the base ring, as in the real Cupola.
+	for (let k = 0; k < 6; k++) {
+		const a = vertex(k, base - 0.22, -0.12);
+		const c = vertex(k + 1, base - 0.22, -0.12);
+		const out = vertex(k, base, 0).sub(vertex(k, base - 0.22, -0.12)).multiplyScalar(0.5);
+		// Shorter than the edge, so the corners stay clear.
+		handrail(b, m, a.clone().lerp(c, 0.2).toArray(), a.clone().lerp(c, 0.8).toArray(), { offset: out });
 	}
-	b.add(box(halfWidth * 2, 0.05, 0.04), m.strip, { position: [0, 0.15, front + 0.33] });
-	b.add(new THREE.PlaneGeometry(halfWidth * 2, height), m.panel, { position: [0, height / 2, back], rotation: [0, Math.PI, 0] });
-	b.add(box(halfWidth * 2, 0.05, 0.04), m.strip, { position: [0, 0.15, back - 0.33] });
 }
 
-/** Four bars around an opening ({x, z, width, depth}), slightly inside it. */
-function rimOf(opening, thickness) {
-	const { x, z, width, depth } = opening;
-	return [
-		[width, thickness, x, z - depth / 2 + thickness / 2],
-		[width, thickness, x, z + depth / 2 - thickness / 2],
-		[thickness, depth, x - width / 2 + thickness / 2, z],
-		[thickness, depth, x + width / 2 - thickness / 2, z],
-	];
+/** The skirt behind the viewer: lockers, lights, a hatch, bags, two laptops. */
+function buildSkirt(b, m, displays) {
+	const { base, skirt } = CUPOLA;
+	for (let k = 0; k < 6; k++) {
+		const a = vertex(k, base, 0);
+		const c = vertex(k + 1, base, 0);
+		b.add(quad(a, c, vertex(k + 1, base, skirt), vertex(k, base, skirt)), m.lockers);
+		bar(b, m.strut, vertex(k, base, skirt), vertex(k + 1, base, skirt), 0.05);
+		bar(b, m.strut, vertex(k, base, 0), vertex(k, base, skirt), 0.035);
+	}
+	// Light panels on the two upper faces.
+	for (const k of [5, 0]) {
+		// Inset in the face, a little in front of it.
+		const corners = [vertex(k, base, 0.2), vertex(k + 1, base, 0.2), vertex(k + 1, base, skirt - 0.2), vertex(k, base, skirt - 0.2)];
+		const center = corners.reduce((sum, p) => sum.add(p), new THREE.Vector3()).multiplyScalar(0.25);
+		const toAxis = new THREE.Vector3(0, CUPOLA.axisY, center.z).sub(center).normalize().multiplyScalar(0.01);
+		b.add(quad(...corners.map((p) => center.clone().lerp(p, 0.6).add(toAxis))), m.light);
+	}
+	// Back wall: the hatch to the station, cargo bags around it.
+	const wall = new THREE.Shape();
+	for (let k = 0; k <= 6; k++) {
+		const p = vertex(k, base, 0);
+		if (k === 0) wall.moveTo(p.x, p.y - CUPOLA.axisY);
+		else wall.lineTo(p.x, p.y - CUPOLA.axisY);
+	}
+	b.add(new THREE.ShapeGeometry(wall), m.frame, { position: [0, CUPOLA.axisY, skirt], rotation: [0, Math.PI, 0] });
+	const hatch = new Placer(b, [0, CUPOLA.axisY + 0.1, skirt - 0.02], Math.PI);
+	hatch.add(new THREE.TorusGeometry(0.5, 0.05, 8, 40), m.strut);
+	hatch.add(new THREE.CircleGeometry(0.47, 40), m.dark, [0, 0, 0.01]);
+	hatch.add(box(0.3, 0.04, 0.05), m.handrail, [0, -0.18, 0.04]);
+	for (const [x, y, w, h, tilt] of [[-0.95, 1.6, 0.45, 0.32, 0.06], [0.95, 1.0, 0.45, 0.32, -0.08], [-0.8, 0.6, 0.4, 0.28, 0.1]]) {
+		cargoBag(b, m, [x, y, skirt - 0.17], 0, { width: w, height: h, depth: 0.28, tilt });
+	}
+	// Two laptops on the lower side faces, turned towards the seat (the
+	// robotic arm workstation of the real Cupola).
+	for (const side of [-1, 1]) {
+		const position = new THREE.Vector3(side * 1.0, 0.95, 0.35);
+		const facing = Math.atan2(position.x - SEAT.x, position.z - (SEAT.z + 0.1)) ;
+		const l = new Placer(b, position.toArray(), facing);
+		l.add(box(0.32, 0.02, 0.22), m.dark);
+		displays.addScreen(b, m.dark, l.point([0, 0.11, 0.11]).toArray(), facing, { width: 0.28, cell: side < 0 ? 0 : 3 });
+		bar(b, m.metal, position.clone().add(new THREE.Vector3(0, -0.02, 0)), new THREE.Vector3(side * 1.25, 0.75, 0.35), 0.015, 6);
+	}
 }
 
-/** The thickness around an opening in the floor or ceiling (walls going from `y` by `height`). */
-function frameOpening(b, m, opening, y, height) {
-	const { x, z, width, depth } = opening;
-	const h = Math.abs(height);
-	const cy = y + height / 2;
-	b.add(new THREE.PlaneGeometry(width, h), m.darkPanel, { position: [x, cy, z - depth / 2] });
-	b.add(new THREE.PlaneGeometry(width, h), m.darkPanel, { position: [x, cy, z + depth / 2] });
-	b.add(new THREE.PlaneGeometry(depth, h), m.darkPanel, { position: [x - width / 2, cy, z], rotation: [0, Math.PI / 2, 0] });
-	b.add(new THREE.PlaneGeometry(depth, h), m.darkPanel, { position: [x + width / 2, cy, z], rotation: [0, Math.PI / 2, 0] });
+/** The crew seat, clamped on two rails crossing the base ring. */
+function buildSeat(b, m) {
+	// Half the hexagon's width at the rails' height (they end on its lower faces).
+	const inradius = CUPOLA.base * Math.cos(Math.PI / 6);
+	const below = CUPOLA.axisY - RAIL_Y;
+	const halfWidth = CUPOLA.base / 2 + (CUPOLA.base / 2) * (1 - below / inradius) - 0.03;
+	for (const dz of [-0.16, 0.2]) {
+		const z = SEAT.z + dz;
+		bar(b, m.metal, new THREE.Vector3(-halfWidth, RAIL_Y, z), new THREE.Vector3(halfWidth, RAIL_Y, z), 0.03, 10);
+		for (const side of [-1, 1]) b.add(box(0.1, 0.12, 0.12), m.dark, { position: [side * (halfWidth - 0.03), RAIL_Y, z] });
+	}
+
+	const p = new Placer(b, [SEAT.x, 0, SEAT.z]);
+	for (const dz of [-0.16, 0.2]) {
+		for (const x of [-0.18, 0.18]) p.add(roundedBox(0.1, 0.09, 0.09, 0.02, 1), m.dark, [x, RAIL_Y, dz]);
+	}
+	p.add(box(0.5, 0.05, 0.46), m.dark, [0, RAIL_Y + 0.06, 0.02]);
+	p.add(box(0.12, 0.12, 0.12), m.metal, [0, RAIL_Y + 0.14, 0.05]);
+	// Seat pan, reclined back, headrest, armrests.
+	p.add(roundedBox(0.56, 0.1, 0.5, 0.04, 1), m.seat, [0, 0.5, -0.02]);
+	p.add(roundedBox(0.56, 0.75, 0.1, 0.04, 1), m.seat, [0, 0.9, 0.3], [-0.22, 0, 0]);
+	p.add(roundedBox(0.3, 0.2, 0.09, 0.04, 1), m.seat, [0, 1.43, 0.43], [-0.22, 0, 0]);
+	for (const side of [-1, 1]) {
+		p.add(roundedBox(0.07, 0.06, 0.42, 0.02, 1), m.dark, [side * 0.33, 0.7, 0]);
+		p.add(box(0.03, 0.2, 0.03), m.metal, [side * 0.33, 0.6, 0.12]);
+	}
+	// Lap strap with its buckle; foot loops on the lowest strut of the base ring.
+	p.add(box(0.5, 0.012, 0.05), m.strap, [0, 0.62, -0.08]);
+	p.add(box(0.06, 0.016, 0.045), m.handrail, [0, 0.625, -0.08]);
+	const bottom = vertex(2, CUPOLA.base, 0).y;
+	for (const x of [-0.15, 0.15]) {
+		b.add(new THREE.TorusGeometry(0.07, 0.012, 6, 12, Math.PI), m.strap, { position: [x, bottom + 0.04, -0.02] });
+	}
+}
+
+/** Whether a point is between the viewer's eyes and the screen (with a margin). */
+function inFrontOfScreen(point) {
+	const t = (EYE.z - point.z) / (EYE.z - SCREEN.z);
+	if (t < -0.1 || t > 1.1) return false;
+	const margin = 0.18;
+	const halfWidth = (SCREEN.maxWidth / 2) * Math.max(t, 0) + margin;
+	const halfHeight = (SCREEN.maxHeight / 2) * Math.max(t, 0) + margin;
+	return Math.abs(point.x - SCREEN.x) < halfWidth && Math.abs(point.y - EYE.y + (EYE.y - SCREEN.y) * t) < halfHeight;
+}
+
+/** Things drifting in the air, never between the eyes and the screen. */
+function floaters(group) {
+	return new FloatingObjects(group, [
+		{ kind: 'tablet', min: [-0.5, 1.95, 0.5], max: [0.5, 2.3, 0.8] },
+		{ kind: 'pouch', min: [-1.0, 1.0, -0.6], max: [-0.78, 1.6, -0.15] },
+		{ kind: 'water', min: [0.72, 1.05, -0.65], max: [0.92, 1.55, -0.2] },
+		{ kind: 'pen', min: [-0.35, 1.98, -0.6], max: [0.35, 2.2, -0.2] },
+		{ kind: 'plush', min: [-1.0, 0.65, 0.55], max: [-0.6, 1.0, 0.85] },
+	], { keepOut: inFrontOfScreen });
+}
+
+/** Space: stars, the moon, the planet below, the station's solar arrays. */
+function outside() {
+	const group = new THREE.Group();
+	group.add(gradientSky([[0, '#020309'], [0.5, '#05060f'], [1, '#020309']], 400));
+	group.add(starfield({ count: 2500, radius: 380, seed: 11 }));
+	const sun = new THREE.Vector3(0.6, 0.7, 0.35);
+	// Big and close below: it fills the lower windows, its horizon curving away.
+	const world = planet({ radius: 160, texture: textures.planetSurface(7), sun, atmosphere: '#7fb4ff' });
+	world.position.set(0, -168, -40);
+	world.rotation.x = 0.4;
+	group.add(world);
+	// The moon, up and to the left, in the upper windows.
+	const satellite = moon({ size: 16, color: '#d6d9e0' });
+	satellite.position.copy(new THREE.Vector3(-0.55, 0.5, -0.67).normalize().multiplyScalar(240));
+	group.add(satellite);
+	// The station's truss and solar arrays, off to the right.
+	const arrays = new THREE.Group();
+	arrays.add(new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.8, 60), new THREE.MeshLambertMaterial({ color: '#8d939c' })));
+	const cells = new THREE.MeshLambertMaterial({ map: textures.repeated(textures.solarPanel(), 2, 12), side: THREE.DoubleSide });
+	for (const z of [-22, -16, 16, 22]) {
+		const wing = new THREE.Mesh(new THREE.PlaneGeometry(4.5, 34), cells);
+		wing.rotation.set(0, Math.PI / 2, 0.35);
+		wing.position.set(0, 0, z);
+		wing.rotation.order = 'YXZ';
+		arrays.add(wing);
+	}
+	arrays.position.set(24, 6, -8);
+	arrays.rotation.y = -0.35;
+	group.add(arrays);
+	return { group, surface: world.userData.surface };
 }

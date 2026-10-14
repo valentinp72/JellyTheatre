@@ -7,7 +7,7 @@ import { merge } from './geometry.js';
 
 export class StaticBuilder {
 	constructor() {
-		/** @type {Map<THREE.Material, { walkable: THREE.BufferGeometry[], other: THREE.BufferGeometry[] }>} */
+		/** @type {Map<THREE.Material, THREE.BufferGeometry[]>} */
 		this.parts = new Map();
 	}
 
@@ -19,32 +19,27 @@ export class StaticBuilder {
 	 * @param {[number, number, number]} [options.position]
 	 * @param {[number, number, number]} [options.rotation] Euler angles in radians
 	 * @param {[number, number, number]} [options.scale]
-	 * @param {boolean} [options.walkable] can be teleported onto (its upward faces)
 	 */
-	add(geometry, material, { position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1], walkable = false } = {}) {
+	add(geometry, material, { position = [0, 0, 0], rotation = [0, 0, 0], scale = [1, 1, 1] } = {}) {
 		const matrix = new THREE.Matrix4().compose(
 			new THREE.Vector3(...position),
 			new THREE.Quaternion().setFromEuler(new THREE.Euler(...rotation)),
 			new THREE.Vector3(...scale),
 		);
 		geometry.applyMatrix4(matrix);
-		if (!this.parts.has(material)) this.parts.set(material, { walkable: [], other: [] });
-		this.parts.get(material)[walkable ? 'walkable' : 'other'].push(geometry);
+		if (!this.parts.has(material)) this.parts.set(material, []);
+		this.parts.get(material).push(geometry);
 		return this;
 	}
 
-	/** Merges everything into a group (one mesh per material and walkability). */
+	/** Merges everything into a group (one mesh per material). */
 	build() {
 		const group = new THREE.Group();
-		for (const [material, { walkable, other }] of this.parts) {
-			for (const [list, isWalkable] of [[walkable, true], [other, false]]) {
-				if (!list.length) continue;
-				const mesh = new THREE.Mesh(merge(list), material);
-				mesh.userData.teleport = isWalkable;
-				mesh.matrixAutoUpdate = false;
-				mesh.updateMatrix();
-				group.add(mesh);
-			}
+		for (const [material, list] of this.parts) {
+			const mesh = new THREE.Mesh(merge(list), material);
+			mesh.matrixAutoUpdate = false;
+			mesh.updateMatrix();
+			group.add(mesh);
 		}
 		this.parts.clear();
 		return group;

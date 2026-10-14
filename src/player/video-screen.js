@@ -14,7 +14,7 @@ import { getSetting } from '../settings.js';
 import { entity, setInteractiveVisible } from '../ui/widgets.js';
 import { createHoleMaterial, layersAvailable, poseRelativeTo, quadSize, setBehindLayer } from '../xr/layers.js';
 
-const SAMPLE_INTERVAL_MS = 200;
+const SAMPLE_INTERVAL_MS = 50;
 const SUBTITLE_SIZES = { small: 0.75, medium: 1, large: 1.3, xlarge: 1.65 };
 const SUBTITLE_COLORS = { white: '#ffffff', yellow: '#ffe066' };
 const SKIP_LABELS = { Intro: 'Skip intro', Recap: 'Skip recap', Preview: 'Skip preview', Commercial: 'Skip ad', Outro: 'Skip credits' };

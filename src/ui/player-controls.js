@@ -1,8 +1,10 @@
-// Lap-height control panel: title, seek bar, transport buttons, track menus.
-// Bound to a Player with `bind(player)`. Emits `stop-request` and `activity`.
+// Lap-height control panel: title, clock and end time, seek bar, transport
+// buttons, track menus (with the subtitle timing). Bound to a Player with
+// `bind(player)`. Emits `stop-request` and `activity`.
 
 import * as THREE from 'three';
 import { describeItem } from '../jellyfin/library.js';
+import { getSetting, setSetting, SETTING_DEFINITIONS } from '../settings.js';
 import { truncate } from './text.js';
 import { COLORS, entity, loadTexture, setInteractiveVisible, whenLoaded } from './widgets.js';
 
@@ -28,6 +30,13 @@ export function formatTime(seconds) {
 	return h > 0 ? `${h}:${m.toString().padStart(2, '0')}:${s}` : `${m}:${s}`;
 }
 
+/** Time of day, as the headset's locale writes it ("21:14", "9:14 PM"). */
+function formatClock(date) {
+	return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+}
+
+const SUBTITLE_OFFSET = SETTING_DEFINITIONS.find((setting) => setting.name === 'subtitleOffset');
+
 AFRAME.registerComponent('player-controls', {
 	init() {
 		this.player = null;
@@ -46,6 +55,9 @@ AFRAME.registerComponent('player-controls', {
 		this.subtitle = entity({ position: `${left} ${top - 0.073} 0.002`, 'ui-text': `fontSize: 0.018; color: ${COLORS.muted}; anchorX: left` });
 		this.mode = entity({ position: `${right} ${top - 0.04} 0.002`, 'ui-text': 'fontSize: 0.016; anchorX: right' });
 		this.tooltip = entity({ position: `${right} ${top - 0.073} 0.002`, 'ui-text': `fontSize: 0.018; color: ${COLORS.accent2}; anchorX: right` });
+		// Clock and end time, in the tooltip's place while no tooltip shows.
+		this.clock = entity({ position: `${right} ${top - 0.073} 0.002`, 'ui-text': `fontSize: 0.018; color: ${COLORS.muted}; anchorX: right` });
+		this.lastClock = 0;
 
 		const barY = top - 0.115;
 		this.current = entity({ position: `${-BAR_WIDTH / 2 - 0.015} ${barY} 0.002`, 'ui-text': 'fontSize: 0.017; anchorX: right' });
@@ -102,11 +114,11 @@ AFRAME.registerComponent('player-controls', {
 
 		this.menuEl = entity({ position: `0 ${top + 0.02} 0` });
 
-		this.el.append(this.background, this.handle, this.title, this.subtitle, this.mode, this.tooltip,
+		this.el.append(this.background, this.handle, this.title, this.subtitle, this.mode, this.tooltip, this.clock,
 			this.current, this.total, this.bar, this.ticks, this.preview, this.buttonRow, this.menuEl);
 		// Pointing at the panel counts as activity (keeps it from auto-hiding).
 		this.el.addEventListener('mouseenter', () => this.activity());
-		this.el.addEventListener('tooltip', (event) => this.tooltip.setAttribute('ui-text', 'value', event.detail.text));
+		this.el.addEventListener('tooltip', (event) => this.showTooltip(event.detail.text));
 		setInteractiveVisible(this.el, false);
 	},
 
@@ -140,9 +152,14 @@ AFRAME.registerComponent('player-controls', {
 		return current;
 	},
 
-	/** While a pointer is on the seek bar: preview of that moment above it. */
-	tick() {
+	/** Seek bar preview while a pointer is on the bar; the clock. */
+	tick(now) {
 		const player = this.player;
+		// The clock and end time move even while paused.
+		if (this.visible && now - this.lastClock > 1000) {
+			this.lastClock = now;
+			this.refreshClock();
+		}
 		let fraction = null;
 		if (this.visible && player?.isActive) {
 			for (const pointer of this.pointers) {
@@ -195,7 +212,22 @@ AFRAME.registerComponent('player-controls', {
 	changeVolume(delta) {
 		if (!this.player) return;
 		this.player.setVolume(this.player.volume + delta);
-		this.tooltip.setAttribute('ui-text', 'value', `Volume ${Math.round(this.player.volume * 100)} %`);
+		this.showTooltip(`Volume ${Math.round(this.player.volume * 100)} %`);
+	},
+
+	showTooltip(text) {
+		this.tooltip.setAttribute('ui-text', 'value', text);
+		this.clock.object3D.visible = !text;
+	},
+
+	/** "21:14 · Ends at 22:41" (the end time at normal speed, from now). */
+	refreshClock() {
+		const player = this.player;
+		if (!player || !this.visible) return;
+		const now = new Date();
+		const remaining = Math.max(0, player.duration - (player.video.currentTime || 0));
+		const ends = player.duration ? ` · Ends at ${formatClock(new Date(now.getTime() + remaining * 1000))}` : '';
+		this.clock.setAttribute('ui-text', 'value', `${formatClock(now)}${ends}`);
 	},
 
 	activity() {
@@ -207,7 +239,7 @@ AFRAME.registerComponent('player-controls', {
 		this.visible = visible;
 		if (!visible) {
 			this.closeMenu();
-			this.tooltip.setAttribute('ui-text', 'value', '');
+			this.showTooltip('');
 		}
 		setInteractiveVisible(this.el, visible);
 		if (visible) this.refresh();
@@ -242,6 +274,7 @@ AFRAME.registerComponent('player-controls', {
 		this.current.setAttribute('ui-text', 'value', formatTime(position));
 		this.total.setAttribute('ui-text', 'value', formatTime(duration));
 		this.bar.setAttribute('ui-progress', 'value', duration ? position / duration : 0);
+		this.refreshClock();
 	},
 
 	toggleMenu(kind) {
@@ -281,8 +314,11 @@ AFRAME.registerComponent('player-controls', {
 		options = options.slice(0, MENU_ROWS);
 		const rowH = 0.05;
 		const width = 0.56;
-		const height = options.length * rowH + 0.03;
+		// Subtitles: a timing row under the tracks, which keeps the menu open.
+		const timing = this.menu === 'subtitles';
+		const height = (options.length + (timing ? 1 : 0)) * rowH + 0.03;
 		this.menuEl.replaceChildren(entity({ position: `0 ${height / 2} 0.01`, 'ui-rect': `width: ${width}; height: ${height}; radius: 0.02` }));
+		if (timing) this.menuEl.appendChild(this.timingRow(width, 0.015 + rowH / 2, rowH - 0.007));
 		options.forEach((option, i) => {
 			const row = entity({
 				position: `0 ${height - 0.015 - rowH / 2 - i * rowH} 0.012`,
@@ -296,5 +332,27 @@ AFRAME.registerComponent('player-controls', {
 			this.menuEl.appendChild(row);
 		});
 		setInteractiveVisible(this.menuEl, this.visible);
+	},
+
+	/** "Timing  [−1 s] [−0.1]  +0.3 s  [+0.1] [+1 s]": the subtitle offset. */
+	timingRow(width, y, height) {
+		const row = entity({ position: `0 ${y} 0.012` });
+		const offset = getSetting('subtitleOffset');
+		const label = entity({ position: `${-width / 2 + 0.025} 0 0`, 'ui-text': { value: 'Timing', fontSize: 0.019, anchorX: 'left' } });
+		const value = entity({ position: '0.065 0 0', 'ui-text': { value: SUBTITLE_OFFSET.format(offset), fontSize: 0.019, align: 'center', anchorX: 'center' } });
+		row.append(label, value);
+		const stepW = 0.07;
+		[[-1, '−1 s', -0.1], [-0.1, '−0.1', -0.025], [0.1, '+0.1', 0.155], [1, '+1 s', 0.23]].forEach(([step, text, x]) => {
+			const button = entity({ position: `${x} 0 0`, 'ui-button': { label: text, width: stepW, height, fontSize: 0.017 } });
+			button.addEventListener('click', () => {
+				const next = THREE.MathUtils.clamp(getSetting('subtitleOffset') + step, SUBTITLE_OFFSET.min, SUBTITLE_OFFSET.max);
+				// Rounded to avoid floating point noise (0.30000000000000004).
+				setSetting('subtitleOffset', Math.round(next * 10) / 10);
+				value.setAttribute('ui-text', 'value', SUBTITLE_OFFSET.format(getSetting('subtitleOffset')));
+				this.activity();
+			});
+			row.appendChild(button);
+		});
+		return row;
 	},
 });

@@ -1,10 +1,13 @@
 // Cabin by the lake: a log cabin at night. A stone fireplace with a real
-// fire, windows onto a moonlit lake (mountains, pines, stars) with rain
-// running down the glass, a sofa, an armchair by the fire and a rug.
+// fire and candles on the mantel, windows onto a moonlit lake (mountains,
+// pines, stars) with rain running down the glass, a sofa, an armchair by the
+// fire, a rug, paintings, shelves, firewood, pendant lamps and a wall clock
+// at the real time.
 
 import * as THREE from 'three';
 import { StaticBuilder } from '../kit/builder.js';
 import { defineEnvironment } from '../kit/environment.js';
+import { Candles, framedPicture, pendantLamp, WallClock, wallShelf, woodpile } from '../kit/decor.js';
 import { Fire } from '../kit/fire.js';
 import { box, tiledBox, tiledPlane, wallWithOpenings } from '../kit/geometry.js';
 import { EnvironmentLighting } from '../kit/lighting.js';
@@ -54,6 +57,11 @@ defineEnvironment('cabin', {
 			black: basic({ color: '#050403' }),
 			books: ['#7a2e2e', '#2e4a6b', '#3f5a36', '#8a6a3a', '#d8cfbf'].map((color) => lambert({ color })),
 			lampShade: basic({ color: '#ffcf8f', side: THREE.DoubleSide }),
+			pictures: lambert({ map: textures.pictures('landscape', { seed: 3 }).texture }),
+			wax: lambert({ color: '#efe3c8' }),
+			jars: ['#8a9a7a', '#c9a46a', '#d9d2c0'].map((color) => lambert({ color })),
+			bark: lambert({ color: '#4a3220' }),
+			logEnd: lambert({ color: '#c9a070' }),
 		};
 
 		buildRoom(b, m);
@@ -69,6 +77,12 @@ defineEnvironment('cabin', {
 		floorLamp(b, m, [-1.4, 0, SOFA_Z + 0.35]);
 		bookshelf(b, m, [-2.3, 0, ROOM.back - 0.2], 0, { width: 1.5, height: 2.1, seed: 12 });
 		plant(b, m, [ROOM.halfWidth - 0.4, 0, -3.5], { size: 1.2, seed: 13 });
+		decorate(b, m);
+		const candles = new Candles(env.group, b, m, [
+			// On the mantel, and on the coffee table.
+			[-2.78, 1.3, -0.45], [-2.78, 1.3, -0.3], [-2.78, 1.3, 0.75], [0.25, 0.42, SOFA_Z - 1.25], [0.36, 0.42, SOFA_Z - 1.12, 0.09],
+		]);
+		const clock = new WallClock(env.group, b, m, [-3.0, 2.35, ROOM.front + 0.03]);
 		env.group.add(b.build());
 
 		const lighting = new EnvironmentLighting(env.group, {
@@ -89,16 +103,37 @@ defineEnvironment('cabin', {
 			width: 0.75,
 			lighting,
 		})];
-		env.effects.push(rainOnWindows(env.group));
+		env.effects.push(rainOnWindows(env.group), candles, clock);
 		env.group.add(outside());
 	},
 });
+
+/** Paintings, shelves, firewood, pendant lamps and a few things on the table. */
+function decorate(b, m) {
+	const { halfWidth, front, height } = ROOM;
+	const atlas = textures.pictures('landscape', { seed: 3 });
+	// Above the mantel, on the chimney; and between the right wall's windows.
+	framedPicture(b, m, [-halfWidth + FIREPLACE.depth + 0.02, 2.05, FIREPLACE.z], -Math.PI / 2, { width: 1.0, atlas, index: 0, frame: 0.06 });
+	framedPicture(b, m, [halfWidth - 0.03, 1.65, 0], Math.PI / 2, { width: 0.75, atlas, index: 5, frame: 0.05 });
+	// Shelves on both sides of the screen (the clock hangs above the left one).
+	wallShelf(b, m, [-3.0, 1.55, front + 0.12], Math.PI, { width: 1.0, seed: 4 });
+	wallShelf(b, m, [3.0, 1.95, front + 0.12], Math.PI, { width: 1.0, seed: 7 });
+	wallShelf(b, m, [3.0, 1.4, front + 0.12], Math.PI, { width: 1.0, seed: 11 });
+	// Firewood next to the fireplace, ends facing the room.
+	woodpile(b, m, [-halfWidth + 0.26, 0, FIREPLACE.z - FIREPLACE.width / 2 - 0.65], -Math.PI / 2, { width: 0.95, rows: 5 });
+	// Pendant lamps from a beam, off to the sides so they never hide the screen.
+	for (const x of [-1.75, 1.75]) pendantLamp(b, m, [x, height - 0.22, -1.4], { drop: 0.75 });
+	// A mug and a couple of books on the coffee table.
+	b.add(new THREE.CylinderGeometry(0.04, 0.036, 0.09, 12), m.jars[2], { position: [-0.2, 0.465, SOFA_Z - 1.1] });
+	b.add(box(0.22, 0.03, 0.16), m.books[1], { position: [-0.35, 0.435, SOFA_Z - 1.3], rotation: [0, 0.3, 0] });
+	b.add(box(0.2, 0.025, 0.15), m.books[0], { position: [-0.34, 0.462, SOFA_Z - 1.29], rotation: [0, 0.15, 0] });
+}
 
 function buildRoom(b, m) {
 	const { halfWidth, front, back, height } = ROOM;
 	const depth = back - front;
 	const midZ = (front + back) / 2;
-	b.add(tiledPlane(halfWidth * 2, depth, 2), m.planks, { position: [0, 0, midZ], rotation: [-Math.PI / 2, 0, 0], walkable: true });
+	b.add(tiledPlane(halfWidth * 2, depth, 2), m.planks, { position: [0, 0, midZ], rotation: [-Math.PI / 2, 0, 0] });
 	b.add(tiledPlane(halfWidth * 2, depth, 2), m.ceiling, { position: [0, height, midZ], rotation: [Math.PI / 2, 0, 0] });
 	for (let z = front + 1; z < back; z += 1.6) {
 		b.add(tiledBox(halfWidth * 2, 0.22, 0.18, 1), m.beam, { position: [0, height - 0.11, z] });
@@ -119,7 +154,7 @@ function buildRoom(b, m) {
 	// The hearth opening: a dark recess in front of the stone.
 	const opening = { width: 1.0, height: 0.8 };
 	b.add(box(0.02, opening.height, opening.width), m.soot, { position: [-halfWidth + FIREPLACE.depth + 0.011, 0.12 + opening.height / 2, FIREPLACE.z] });
-	b.add(tiledBox(FIREPLACE.depth + 0.3, 0.12, FIREPLACE.width + 0.3, 1.2), m.stone, { position: [fx + 0.15, 0.06, FIREPLACE.z], walkable: true });
+	b.add(tiledBox(FIREPLACE.depth + 0.3, 0.12, FIREPLACE.width + 0.3, 1.2), m.stone, { position: [fx + 0.15, 0.06, FIREPLACE.z] });
 	b.add(tiledBox(0.25, 0.1, FIREPLACE.width + 0.2, 1), m.beam, { position: [-halfWidth + FIREPLACE.depth + 0.1, 1.25, FIREPLACE.z] });
 
 	// Front wall: the screen in a dark wooden frame.

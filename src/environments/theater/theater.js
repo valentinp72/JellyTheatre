@@ -134,7 +134,7 @@ function buildShell(b, m) {
 	const { halfWidth, front, back, height } = ROOM;
 	const depth = back - front;
 	const midZ = (front + back) / 2;
-	b.add(tiledPlane(halfWidth * 2, depth, 1.2), m.carpet, { position: [0, 0, midZ], rotation: [-Math.PI / 2, 0, 0], walkable: true });
+	b.add(tiledPlane(halfWidth * 2, depth, 1.2), m.carpet, { position: [0, 0, midZ], rotation: [-Math.PI / 2, 0, 0] });
 	b.add(tiledPlane(halfWidth * 2, depth, 1.2), m.ceiling, { position: [0, height, midZ], rotation: [Math.PI / 2, 0, 0] });
 	for (const side of [-1, 1]) {
 		b.add(new THREE.PlaneGeometry(depth, height), m.wall, { position: [side * halfWidth, height / 2, midZ], rotation: [0, -side * Math.PI / 2, 0] });
@@ -155,7 +155,7 @@ function buildShell(b, m) {
 
 	// Stage under the screen, with a lit edge.
 	const stageDepth = STAGE.front - front;
-	b.add(tiledBox(halfWidth * 2, STAGE.top, stageDepth, 1.5), m.wood, { position: [0, STAGE.top / 2, front + stageDepth / 2], walkable: true });
+	b.add(tiledBox(halfWidth * 2, STAGE.top, stageDepth, 1.5), m.wood, { position: [0, STAGE.top / 2, front + stageDepth / 2] });
 	b.add(box(halfWidth * 2, 0.025, 0.025), m.stageLight, { position: [0, STAGE.top - 0.02, STAGE.front + 0.01] });
 }
 
@@ -168,7 +168,7 @@ function buildSeating(b, m) {
 			const width = seg.to - seg.from;
 			const x = (seg.from + seg.to) / 2;
 			if (!seg.aisle) {
-				b.add(tiledBox(width, h, ROW_PITCH, 1.2), m.carpet, { position: [x, h / 2, rowZ(row)], walkable: true });
+				b.add(tiledBox(width, h, ROW_PITCH, 1.2), m.carpet, { position: [x, h / 2, rowZ(row)] });
 				// Dark nosing on the tier edge.
 				b.add(box(width, 0.03, 0.04), m.trim, { position: [x, h - 0.015, zFront + 0.02] });
 				continue;
@@ -176,8 +176,8 @@ function buildSeating(b, m) {
 			// Aisle: a half-step in the front half of each tier.
 			const half = ROW_PITCH / 2;
 			const low = h - RISE / 2;
-			b.add(tiledBox(width, low, half, 1.2), m.carpet, { position: [x, low / 2, zFront + half / 2], walkable: true });
-			b.add(tiledBox(width, h, half, 1.2), m.carpet, { position: [x, h / 2, zFront + half * 1.5], walkable: true });
+			b.add(tiledBox(width, low, half, 1.2), m.carpet, { position: [x, low / 2, zFront + half / 2] });
+			b.add(tiledBox(width, h, half, 1.2), m.carpet, { position: [x, h / 2, zFront + half * 1.5] });
 			for (const [y, z] of [[low, zFront], [h, zFront + half]]) {
 				b.add(box(width - 0.2, 0.025, 0.025), m.stepLight, { position: [x, y - 0.03, z + 0.005] });
 			}
@@ -187,7 +187,7 @@ function buildSeating(b, m) {
 	const lastBack = rowZ(ROWS - 1) + ROW_PITCH / 2;
 	const depth = ROOM.back - lastBack;
 	const h = rowFloor(ROWS - 1);
-	b.add(tiledBox(ROOM.halfWidth * 2, h, depth, 1.2), m.carpet, { position: [0, h / 2, lastBack + depth / 2], walkable: true });
+	b.add(tiledBox(ROOM.halfWidth * 2, h, depth, 1.2), m.carpet, { position: [0, h / 2, lastBack + depth / 2] });
 }
 
 /** Acoustic bays, pilasters, sconces, surround speakers and exit doors on the side walls. */

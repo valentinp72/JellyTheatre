@@ -19,7 +19,7 @@ sideload and nothing to add to your server.
 | ![Movie theatre](docs/screenshots/environment-theater.png) | ![Home cinema](docs/screenshots/environment-home.png) |
 | **Movie theatre**: stadium seating, curtains, a projection booth and a giant screen. | **Home cinema**: recliners, a sofa, bookshelves and a starry ceiling. |
 | ![Space station](docs/screenshots/environment-station.png) | ![Lakeside cabin](docs/screenshots/environment-cabin.png) |
-| **Space station**: a glass observation deck over a slowly turning planet. | **Lakeside cabin**: a crackling fire, rain on the windows, a moonlit lake. |
+| **Space station**: float in a Cupola like the ISS's, windows all around onto the planet, the moon and the stars. | **Lakeside cabin**: a crackling fire, rain on the windows, a moonlit lake. |
 
 You can also watch in a **Dark void** (only the screen), or in **My room**,
 which uses passthrough to put the screen in your real room, where you can move
@@ -63,13 +63,14 @@ the server's decision before you press Play.
   subtitles (PGS) are drawn by the headset, so the server never burns them in.
   You can change their size, colour, outline or background box, and where they
   appear (on or below the picture). You can also shift their timing when they
-  are out of sync.
+  are out of sync, right from the subtitle menu.
 - **Skip intro / credits** button, or automatic skipping (when your server
   detects intros and credits).
 - **Seek bar previews** (thumbnails) and **chapter marks**.
 - **Up next**: when the credits start, the next episode is offered with a
   countdown. You can cancel it in one click or turn autoplay off.
 - **Audio and subtitle track menus**, and volume up to 150 %.
+- **The time, and when the film ends**, on the controls (there's no clock in VR).
 - **Crisp picture and menus**: on the Quest, the video and menus are drawn
   directly by the headset at full resolution.
 
@@ -79,11 +80,12 @@ the server's decision before you press Play.
 
 ### Comfortable in VR
 
-- **Teleport** instead of walking (no motion sickness), with snapping to
-  seats, plus **snap turn**.
+- **Change seats** by pointing at one and teleporting there (no walking, no
+  motion sickness), plus **snap turn**.
 - **Recenter** with the Quest's own button. If you're reclined, the screen
   stays in front of you.
-- **Adjustable eye height**, if your seat feels too low or too high.
+- **Adjustable eye height**, if your seat feels too low or too high, or if you
+  watch lying down.
 - The **library, controls and settings panels can be grabbed and moved**
   wherever you like.
 
@@ -107,7 +109,7 @@ the server's decision before you press Play.
 | A / X | Play / pause |
 | B / Y | Show / hide the controls |
 | Grip (on a panel) | Grab and move it; push or pull the stick to move it farther or closer |
-| Stick forward, release | Teleport |
+| Stick forward, point at a seat, release | Teleport to that seat |
 | Right stick left / right | Snap turn |
 | Left stick click | Back to your seat |
 | Hold the Meta button | Recenter the view |

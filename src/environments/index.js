@@ -15,6 +15,7 @@ import { voidLayout } from './void/void.js';
  * @property {{ x: number, y: number, z: number }} seat Rig (floor) position of the viewer.
  * @property {boolean} [screenLight] Lit by the picture.
  * @property {boolean} [ar] Needs an immersive-ar session (passthrough).
+ * @property {number} [menuDistance] Library distance when not on the screen (default 2 m).
  */
 
 /** @type {Record<string, { name: string, description: string, component: string, thumbnail?: boolean, layout: EnvironmentLayout }>} */
@@ -37,7 +38,7 @@ export const environments = {
 	},
 	station: {
 		name: 'Space station',
-		description: 'An observation deck over a slowly turning planet.',
+		description: 'Float in the Cupola of a space station: windows all around onto the planet, the moon and the stars.',
 		component: 'station-environment',
 		// Picker card: public/environments/station.jpg (npm run screenshots).
 		thumbnail: true,

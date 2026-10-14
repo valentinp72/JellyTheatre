@@ -1,7 +1,8 @@
 // Moving around and resetting the view (VR controllers).
 //
-// - Push a stick forward: aim a teleport arc; release it to jump there (with
-//   a short fade). Environments may snap the landing point (theatre seats).
+// - Push a stick forward: point at a seat (the one nearest to where the hand
+//   points is highlighted); release the stick to jump onto it, with a short
+//   fade. Only seats can be reached: there is nothing to do standing up.
 // - Right stick left/right: snap turn.
 // - Recenter: with the headset's own recenter (hold the Meta button), or from
 //   the settings. Upright, only the direction is corrected and the room stays
@@ -20,10 +21,11 @@ const STICK_OFF = 0.3;
 // Looking up more than this (above the horizon) when recentering means the
 // user is reclined: the view is tilted. Below, the room stays level.
 const RECLINE_THRESHOLD = THREE.MathUtils.degToRad(25);
-const ARC_SPEED = 7; // m/s
-const ARC_STEP = 0.03; // s
-const ARC_STEPS = 70;
-const GRAVITY = new THREE.Vector3(0, -9.8, 0);
+// A seat is picked if the hand points within this angle of it.
+const AIM_ANGLE = THREE.MathUtils.degToRad(12);
+// Pointing height above a seat's floor position (about the cushion).
+const SEAT_AIM_HEIGHT = 0.5;
+const ARC_POINTS = 24;
 const FADE_MS = 120;
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -38,7 +40,7 @@ AFRAME.registerComponent('view-controls', {
 		// Where the screen is, and the seat (rig floor position) to return to.
 		target: { type: 'vec3', default: { x: 0, y: 4.6, z: -11.9 } },
 		seat: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
-		// Entity whose meshes tagged `userData.teleport` can be landed on.
+		// Entity whose environment component lists the seats (seatPositions()).
 		environment: { type: 'selector', default: '#environment' },
 	},
 
@@ -46,7 +48,6 @@ AFRAME.registerComponent('view-controls', {
 		this.aimingHand = null;
 		this.landing = null;
 		this.snapLatched = false;
-		this.raycaster = new THREE.Raycaster();
 		this.buildArc();
 		this.buildFader();
 
@@ -82,18 +83,21 @@ AFRAME.registerComponent('view-controls', {
 	},
 
 	buildArc() {
-		const positions = new Float32Array(ARC_STEPS * 3);
+		const positions = new Float32Array(ARC_POINTS * 3);
 		const geometry = new THREE.BufferGeometry();
 		geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 		this.arc = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: '#00a4dc', transparent: true, opacity: 0.8 }));
 		this.arc.frustumCulled = false;
 		this.arc.visible = false;
 
+		// The ring floats over the cushion and is drawn on top, so the seat
+		// itself doesn't hide it.
 		this.marker = new THREE.Group();
 		this.markerRing = new THREE.Mesh(
 			new THREE.RingGeometry(0.22, 0.28, 32),
-			new THREE.MeshBasicMaterial({ color: '#00a4dc', transparent: true, opacity: 0.9, side: THREE.DoubleSide }),
+			new THREE.MeshBasicMaterial({ color: '#00a4dc', transparent: true, opacity: 0.9, side: THREE.DoubleSide, depthTest: false }),
 		);
+		this.markerRing.renderOrder = 999;
 		this.markerRing.rotation.x = -Math.PI / 2;
 		this.marker.add(this.markerRing);
 		this.marker.visible = false;
@@ -120,7 +124,7 @@ AFRAME.registerComponent('view-controls', {
 		if (!aiming && y < -STICK_ON && Math.abs(x) < STICK_ON && !this.aimingHand) {
 			this.aimingHand = hand;
 		} else if (aiming && Math.hypot(x, y) < STICK_OFF) {
-			// Stick released: jump if the arc found somewhere to land.
+			// Stick released: jump if a seat was picked.
 			this.aimingHand = null;
 			this.arc.visible = false;
 			this.marker.visible = false;
@@ -142,67 +146,45 @@ AFRAME.registerComponent('view-controls', {
 		this.updateFade(delta);
 	},
 
-	teleportTargets() {
-		const targets = [];
-		this.data.environment.object3D.traverse((object) => {
-			if (object.userData.teleport) targets.push(object);
-		});
-		return targets;
+	seats() {
+		const environment = Object.values(this.data.environment.components ?? {}).find((c) => c.seatPositions);
+		return environment?.seatPositions() ?? [];
 	},
 
-	/** Traces the teleport arc from the aiming hand's ray, and finds where it lands. */
+	/** Picks the seat the aiming hand points at, and draws an arc to it. */
 	updateArc() {
 		const ray = this.aimingHand.components.raycaster?.raycaster.ray;
 		if (!ray) return;
-		const targets = this.teleportTargets();
-		const positions = this.arc.geometry.attributes.position;
-		const point = ray.origin.clone();
-		const velocity = ray.direction.clone().multiplyScalar(ARC_SPEED);
-		let landing = null;
-		let count = 0;
-		for (; count < ARC_STEPS; count++) {
-			positions.setXYZ(count, point.x, point.y, point.z);
-			if (landing) break;
-			const next = point.clone().addScaledVector(velocity, ARC_STEP);
-			velocity.addScaledVector(GRAVITY, ARC_STEP);
-			const segment = next.clone().sub(point);
-			const length = segment.length();
-			this.raycaster.set(point, segment.normalize());
-			this.raycaster.far = length;
-			const hit = this.raycaster.intersectObjects(targets, false)[0];
-			if (hit) {
-				next.copy(hit.point);
-				// Only floors (surfaces facing up) can be landed on.
-				if (facesUp(hit)) landing = hit.point.clone();
-				else count = ARC_STEPS; // Hit a wall: stop the arc, no landing.
+		let best = null;
+		let bestAngle = AIM_ANGLE;
+		const toSeat = new THREE.Vector3();
+		for (const seat of this.seats()) {
+			toSeat.set(seat.x, seat.y + SEAT_AIM_HEIGHT, seat.z).sub(ray.origin);
+			const angle = toSeat.angleTo(ray.direction);
+			if (angle < bestAngle) {
+				best = seat;
+				bestAngle = angle;
 			}
-			point.copy(next);
 		}
-		positions.needsUpdate = true;
-		this.arc.geometry.setDrawRange(0, Math.min(count + 1, ARC_STEPS));
-		this.arc.visible = true;
+		this.landing = best;
 
-		if (landing) {
-			const snapped = this.data.environment.components
-				&& Object.values(this.data.environment.components).find((c) => c.snapTeleport)?.snapTeleport(landing);
-			if (snapped) landing.copy(snapped);
-		}
-		this.landing = landing;
-		this.marker.visible = Boolean(landing);
-		if (landing) this.marker.position.copy(landing).add(new THREE.Vector3(0, 0.01, 0));
-		this.arc.material.color.set(landing ? '#00a4dc' : '#ff6b7a');
+		// A curve leaving along the ray and coming down on the seat; without a
+		// seat, a short red stub along the ray.
+		const end = best ? new THREE.Vector3(best.x, best.y + SEAT_AIM_HEIGHT, best.z) : ray.origin.clone().addScaledVector(ray.direction, 0.6);
+		const control = ray.origin.clone().addScaledVector(ray.direction, ray.origin.distanceTo(end) * 0.5);
+		const curve = new THREE.QuadraticBezierCurve3(ray.origin.clone(), control, end);
+		const positions = this.arc.geometry.attributes.position;
+		curve.getPoints(ARC_POINTS - 1).forEach((point, i) => positions.setXYZ(i, point.x, point.y, point.z));
+		positions.needsUpdate = true;
+		this.arc.visible = true;
+		this.arc.material.color.set(best ? '#00a4dc' : '#ff6b7a');
+		this.marker.visible = Boolean(best);
+		if (best) this.marker.position.set(best.x, best.y + SEAT_AIM_HEIGHT + 0.1, best.z);
 	},
 
-	/** Jumps so the user's head ends up above `point`, standing on it. */
-	teleport(point) {
-		this.startFade(() => {
-			const rig = this.data.rig.object3D;
-			const head = this.headPosition();
-			rig.position.x += point.x - head.x;
-			rig.position.z += point.z - head.z;
-			rig.position.y = point.y + getSetting('heightOffset');
-			this.emitMoved();
-		});
+	/** Jumps onto `seat` (a floor position), facing the screen. */
+	teleport(seat) {
+		this.startFade(() => this.backToSeat(seat));
 	},
 
 	startFade(atBlack) {
@@ -282,10 +264,9 @@ AFRAME.registerComponent('view-controls', {
 		this.rotateAroundHead(new THREE.Quaternion().setFromUnitVectors(forward, toScreen));
 	},
 
-	/** Back on the seat, level, facing the screen. */
-	backToSeat() {
+	/** Back on the seat (default: the environment's), level, facing the screen. */
+	backToSeat(seat = this.data.seat) {
 		const rig = this.data.rig.object3D;
-		const seat = this.data.seat;
 		rig.quaternion.identity();
 		rig.position.set(seat.x, seat.y + getSetting('heightOffset'), seat.z);
 		this.emitMoved();
@@ -309,13 +290,3 @@ AFRAME.registerComponent('view-controls', {
 		this.data.camera.object3D.remove(this.fader);
 	},
 });
-
-/** Whether a raycast hit is on a surface facing up (a floor), in world space. */
-function facesUp(hit) {
-	if (!hit.face) return false;
-	const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
-	const material = Array.isArray(hit.object.material) ? hit.object.material[hit.face.materialIndex] : hit.object.material;
-	// Inside a box seen from within (BackSide), the visible face points the other way.
-	if (material?.side === THREE.BackSide) normal.negate();
-	return normal.y > 0.7;
-}

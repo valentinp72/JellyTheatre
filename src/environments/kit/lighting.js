@@ -14,6 +14,8 @@ import { getSetting } from '../../settings.js';
 const BRIGHTNESS = { dark: 0.08, dim: 0.2, normal: 0.45, bright: 0.8 };
 const SCREEN_LIGHT = { off: 0, subtle: 0.5, strong: 1 };
 const WHITE = new THREE.Color(1, 1, 1);
+// Time constant of the screen light's easing (the picture is sampled every 50 ms).
+const SCREEN_LIGHT_EASE_MS = 50;
 const FADE_SECONDS = 2;
 
 export class EnvironmentLighting {
@@ -147,9 +149,10 @@ export class EnvironmentLighting {
 			this.level = this.levelTarget > this.level ? Math.min(this.levelTarget, this.level + step) : Math.max(this.levelTarget, this.level - step);
 			this.apply();
 		}
-		// Ease the screen light towards the picture (~0.3 s).
+		// Follow the picture almost at once (light is instant: a visible fade
+		// feels wrong); the short easing only hides the steps between samples.
 		const glow = this.glow;
-		const k = Math.min(1, (dt * 1000) / 300);
+		const k = Math.min(1, (dt * 1000) / SCREEN_LIGHT_EASE_MS);
 		glow.color.lerp(glow.target, k);
 		glow.intensity += (glow.intensityTarget - glow.intensity) * k;
 		glow.spill += (glow.spillTarget - glow.spill) * k;

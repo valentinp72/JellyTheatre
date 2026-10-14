@@ -55,10 +55,6 @@ defineEnvironment('void', {
 		);
 		glow.rotation.x = -Math.PI / 2;
 		glow.position.set(0, 0.001, -3);
-		// Invisible floor to teleport on.
-		const floor = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.MeshBasicMaterial({ visible: false }));
-		floor.rotation.x = -Math.PI / 2;
-		floor.userData.teleport = true;
-		env.group.add(sky, glow, floor);
+		env.group.add(sky, glow);
 	},
 });

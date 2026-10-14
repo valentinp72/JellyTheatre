@@ -39,9 +39,10 @@ export const OPEN_SERIES = {
 	frame: 'File:Caminandes 3 - Llamigos - Blender Animated Short.webm', at: 45,
 	overview: 'Koro the llama takes on the wilds of Patagonia, one stubborn problem at a time.',
 	episodes: [
-		{ name: 'Llama Drama', minutes: 2 },
+		// Gran Dillama's video is CC BY-SA: no still of it (the card shows the series').
+		{ name: 'Llama Drama', minutes: 2, frame: 'File:Caminandes- Llama Drama - Short Movie.ogv', at: 50 },
 		{ name: 'Gran Dillama', minutes: 3 },
-		{ name: 'Llamigos', minutes: 3 },
+		{ name: 'Llamigos', minutes: 3, frame: 'File:Caminandes 3 - Llamigos - Blender Animated Short.webm', at: 100 },
 	],
 };
 
@@ -130,18 +131,23 @@ function clipSubtitles(srt) {
 export async function prepareOpenMovies(dir) {
 	try {
 		for (const sub of ['posters', 'frames', 'trickplay']) fs.mkdirSync(path.join(dir, sub), { recursive: true });
-		for (const item of [...OPEN_MOVIES, OPEN_SERIES]) {
+		const episodes = OPEN_SERIES.episodes.filter((episode) => episode.frame);
+		for (const item of [...OPEN_MOVIES, OPEN_SERIES, ...episodes]) {
 			const file = path.join(dir, item.poster ? 'posters' : 'frames', `${slug(item.name)}.jpg`);
 			if (fs.existsSync(file)) continue;
 			console.log(`Downloading ${item.poster ?? item.frame}`);
-			if (item.poster || !item.frame.endsWith('.webm')) {
+			if (item.poster || !/\.(webm|ogv)$/.test(item.frame)) {
 				// Commons thumbnails keep the format: convert to JPEG.
 				const tmp = `${file}.download`;
 				await download(await commonsUrl(item.poster ?? item.frame, item.poster ? 600 : 1280), tmp);
 				await ffmpeg(['-i', tmp, '-q:v', '3', file], file);
 				fs.rmSync(tmp);
 			} else {
-				await ffmpeg(['-ss', String(item.at), ...remoteInput(await commonsUrl(item.frame)), '-frames:v', '1', '-vf', 'scale=1280:-2', '-q:v', '3', file], file);
+				// Ogg files can't seek over HTTP: decode up to the frame instead.
+				const input = remoteInput(await commonsUrl(item.frame));
+				const seek = ['-ss', String(item.at)];
+				const args = item.frame.endsWith('.ogv') ? [...input, ...seek] : [...seek, ...input];
+				await ffmpeg([...args, '-frames:v', '1', '-vf', 'scale=1280:-2', '-q:v', '3', file], file);
 			}
 		}
 		const clip = path.join(dir, 'test.mp4');

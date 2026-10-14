@@ -1,18 +1,18 @@
 // Declares an environment: an A-Frame component built from a `build`
-// function, with the shared plumbing (lighting updates, teleport snapping,
-// house lights, cleanup) handled here.
+// function, with the shared plumbing (lighting updates, seats to teleport
+// to, house lights, cleanup) handled here.
 //
 //   defineEnvironment('theater', {
 //     build(env) {
 //       env.group.add(...);                         // static scene
 //       env.lighting = new EnvironmentLighting(...); // optional
-//       env.seats = new SeatRows(...);               // optional: snaps teleports
+//       env.seats = new SeatRows(...);               // optional: teleport targets
 //       env.onTick = (delta) => {...};               // optional
 //     },
 //   });
 //
-// The component is `<name>-environment`. Teleport surfaces are meshes with
-// `userData.teleport` (see StaticBuilder's `walkable`).
+// The component is `<name>-environment`. Teleporting only lands on seats: an
+// environment without `env.seats` has no teleport.
 
 import * as THREE from 'three';
 
@@ -36,9 +36,9 @@ export function defineEnvironment(name, { build }) {
 			this.env.lighting?.setHouseLights(on);
 		},
 
-		/** Teleporting near a seat lands on it. */
-		snapTeleport(point) {
-			return this.env.seats?.snap(point) ?? null;
+		/** Floor positions of the seats a viewer can teleport to. */
+		seatPositions() {
+			return this.env.seats?.seats ?? [];
 		},
 
 		tick(time, delta) {

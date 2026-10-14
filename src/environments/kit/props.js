@@ -18,14 +18,14 @@ export class Placer {
 	}
 
 	/** Adds `geometry` at a local position / rotation. */
-	add(geometry, material, [x, y, z] = [0, 0, 0], [rx, ry, rz] = [0, 0, 0], { walkable = false } = {}) {
+	add(geometry, material, [x, y, z] = [0, 0, 0], [rx, ry, rz] = [0, 0, 0]) {
 		geometry.applyMatrix4(new THREE.Matrix4().compose(
 			new THREE.Vector3(x, y, z),
 			new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz)),
 			new THREE.Vector3(1, 1, 1),
 		));
 		geometry.applyMatrix4(this.origin);
-		this.builder.add(geometry, material, { walkable });
+		this.builder.add(geometry, material);
 		return this;
 	}
 
@@ -37,7 +37,7 @@ export class Placer {
 
 /**
  * Sofa with `seats` cushions. Returns the world positions where a viewer sits
- * (for teleport snapping).
+ * (teleport targets).
  * @param {{ fabric: THREE.Material, legs: THREE.Material }} m
  */
 export function sofa(b, m, position, rotationY = 0, { seats = 3, seatWidth = 0.68, depth = 0.95 } = {}) {
@@ -136,10 +136,10 @@ export function table(b, m, position, rotationY = 0, { width = 1.1, depth = 0.6,
 	}
 }
 
-/** Flat rug, just above the floor (walkable). */
+/** Flat rug, just above the floor. */
 export function rug(b, material, position, rotationY = 0, { width = 3, depth = 2 } = {}) {
 	const p = new Placer(b, position, rotationY);
-	p.add(new THREE.PlaneGeometry(width, depth), material, [0, 0.006, 0], [-Math.PI / 2, 0, 0], { walkable: true });
+	p.add(new THREE.PlaneGeometry(width, depth), material, [0, 0.006, 0], [-Math.PI / 2, 0, 0]);
 }
 
 /** Tower speaker. */
