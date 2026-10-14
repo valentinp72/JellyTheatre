@@ -87,7 +87,7 @@ AFRAME.registerComponent('settings-panel', {
 				plus.addEventListener('click', () => step(1));
 				value.append(minus, text, plus);
 				group.append(label, description, value);
-				return { setting, value, text };
+				return { setting, value, text, description };
 			}
 			const value = entity({
 				position,
@@ -107,7 +107,7 @@ AFRAME.registerComponent('settings-panel', {
 				}
 			});
 			group.append(label, description, value);
-			return { setting, value };
+			return { setting, value, description };
 		});
 
 		this.onSettingChange = () => this.render();
@@ -138,6 +138,12 @@ AFRAME.registerComponent('settings-panel', {
 			this.tabs[id].setAttribute('ui-button', 'active', id === category);
 		}
 		this.render();
+	},
+
+	/** Shows `text` under a setting in place of its description ('' to restore it). */
+	setNote(name, text) {
+		const row = this.rows.find((r) => r.setting.name === name);
+		row.description.setAttribute('ui-text', { value: text || row.setting.description, color: text ? COLORS.accent2 : COLORS.muted });
 	},
 
 	/** A page of illustrated cards to choose the value of `setting`. */

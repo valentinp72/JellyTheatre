@@ -172,6 +172,13 @@ async function switchEnvironment(key) {
 	const sessionKind = (k) => Boolean(environments[k].layout.ar && arSupported);
 	const restart = sceneEl.is('vr-mode') || sceneEl.is('ar-mode');
 	const needsNewSession = restart && sessionKind(key) !== sessionKind(currentEnvironment);
+	if (STORE_APP && needsNewSession) {
+		// The store app closes as soon as its session ends: the setting is
+		// saved, and the next launch starts the right kind of session.
+		settings().setNote('environment', `${environments[key].name} opens the next time you start JellyTheatre.`);
+		return;
+	}
+	settings().setNote('environment', '');
 	setupEnvironment(key);
 	if (!needsNewSession) {
 		sceneEl.components['view-controls'].backToSeat();
@@ -299,7 +306,10 @@ sceneReady.then(() => {
 	window.addEventListener('settingchange', ({ detail }) => {
 		if (detail.name === 'menuOnScreen') placeLibrary();
 		if (detail.name === 'screenLight') updateColorSampling();
-		if (detail.name === 'environment' && environmentKey() !== currentEnvironment) switchEnvironment(environmentKey());
+		if (detail.name === 'environment') {
+			if (environmentKey() !== currentEnvironment) switchEnvironment(environmentKey());
+			else settings().setNote('environment', '');
+		}
 		if (detail.name === 'crispLibrary') libraryEl.setAttribute('panel-layer', 'enabled', detail.value);
 	});
 	sceneEl.addEventListener('rig-moved', () => {

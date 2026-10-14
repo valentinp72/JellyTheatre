@@ -143,6 +143,11 @@ does.
   address, Quick Connect code, or username and password on the on-screen
   keyboard). The browser version keeps the lobby; there too the sign-in view
   appears after *Settings → Account → Sign out*.
+- The app closes as soon as its session ends, even when a new one is
+  requested right after the `end` event. So it can't switch between a VR room
+  and passthrough (`immersive-vr` / `immersive-ar`) live: the choice is saved,
+  the settings say it opens at the next launch, and the next launch starts
+  the right kind of session.
 
 - `store/horizon/twa-manifest.json` is the whole configuration (package
   `eu.vpelloin.jellytheatre`); the Android project Bubblewrap generates next to
