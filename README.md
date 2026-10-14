@@ -94,7 +94,7 @@ the server's decision before you press Play.
 1. Your Jellyfin server must be reachable over **HTTPS** (browsers don't allow
    a secure page to load video from a plain HTTP server, and VR requires a
    secure page).
-2. On the headset, open **https://valentinp72.github.io/JellyTheatre/** in the
+2. On the headset, open **https://jellytheatre.vpelloin.eu/** in the
    Quest Browser. To install it as an app, use the browser's menu.
 3. Enter your server address and sign in. **Quick Connect** is easiest: enter
    the code shown in JellyTheatre in another Jellyfin app (phone, web), with

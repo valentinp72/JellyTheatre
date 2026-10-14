@@ -114,9 +114,14 @@ npm run build && npm test   # ~10 s end-to-end smoke test (headless Chrome, fake
 
 Every push to `main` is built, tested and published to GitHub Pages by
 `.github/workflows/pages.yml` (pull requests are built and tested only). The
-app is then served at `https://<owner>.github.io/<repository>/` and can be
-installed from there as a PWA. One-time setup: in the repository's
-*Settings → Pages*, set *Source* to *GitHub Actions*.
+app is then served at `https://jellytheatre.vpelloin.eu/` and can be installed
+from there as a PWA. One-time setup, in the repository's *Settings → Pages*:
+*Source* is *GitHub Actions*, the custom domain is `jellytheatre.vpelloin.eu`
+(a DNS CNAME to `valentinp72.github.io`) with *Enforce HTTPS*.
+
+The domain must never change: the Horizon Store package will be bound to this
+origin through `/.well-known/assetlinks.json` (in `public/`; the workflow
+uploads hidden folders), and saved logins live in its `localStorage`.
 
 To build for another sub-path: `BASE_PATH=/some/path/ npm run build`.
 

@@ -1,6 +1,6 @@
 # Builds JellyTheatre, runs the smoke test, and publishes it to GitHub Pages
-# (https://<owner>.github.io/<repository>/). Pull requests are built and tested
-# but not published.
+# (https://jellytheatre.vpelloin.eu/, the custom domain set in the repository's
+# Pages settings). Pull requests are built and tested but not published.
 name: Build, test and deploy
 
 on:
@@ -24,8 +24,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
-      # Pages serves the app under /<repository>/.
-      BASE_PATH: /${{ github.event.repository.name }}/
+      # The custom domain serves the app at its root.
+      BASE_PATH: /
       CHROME_PATH: /usr/bin/google-chrome
     steps:
       - uses: actions/checkout@v7
@@ -42,6 +42,8 @@ jobs:
         if: github.event_name != 'pull_request'
         with:
           path: dist
+          # Keep .well-known/ (assetlinks.json for the Horizon Store package).
+          include-hidden-files: true
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
