@@ -149,6 +149,12 @@ released under Creative Commons Attribution licences (CC BY 2.5, 3.0 or 4.0):
 [Wikimedia Commons](https://commons.wikimedia.org). Some posters were made from a
 still of the film with its title added, and the clip that plays is silent.
 
+## Privacy
+
+JellyTheatre has no account, analytics or tracking: your server address and
+sign-in stay on your headset and only go to your own Jellyfin server. See the
+[privacy policy](https://jellytheatre.vpelloin.eu/privacy.html).
+
 ## License
 
 See [LICENSE](LICENSE).

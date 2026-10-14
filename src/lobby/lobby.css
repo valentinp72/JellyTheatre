@@ -179,3 +179,7 @@ details summary {
 	background: rgb(23 17 31 / 0.8);
 	color: var(--text);
 }
+
+.lobby footer a {
+	color: inherit;
+}

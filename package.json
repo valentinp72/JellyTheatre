@@ -1,6 +1,6 @@
 {
   "name": "jellytheatre",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "private": true,
   "description": "WebXR movie theatre client for Jellyfin",
   "type": "module",
@@ -15,6 +15,7 @@
     "dev:https": "vite --mode https",
     "preview:https": "vite preview --mode https",
     "screenshots": "vite build && node tools/screenshots/capture.mjs",
+    "store-assets": "vite build && node tools/screenshots/capture.mjs --store && node tools/screenshots/store-art.mjs",
     "test": "node tools/smoke-test.mjs",
     "package:horizon": "cd store/horizon && env -u ANDROID_SDK_ROOT npx -y @meta-quest/bubblewrap-cli@1.24.1 update --skipVersionUpgrade && env -u ANDROID_SDK_ROOT npx -y @meta-quest/bubblewrap-cli@1.24.1 build --skipPwaValidation"
   },

@@ -4,6 +4,10 @@
 //
 //   npm run screenshots
 //
+// With --store (npm run store-assets), it writes the Meta Horizon Store
+// screenshots instead: a few of the same shots at 2560 × 1440, into
+// store/horizon/assets/ (not committed). store-art.mjs then makes the covers.
+//
 // The library is Blender's open movies (open-movies.mjs): posters and a clip
 // are downloaded once into .cache/open-movies/. Without network, it falls
 // back to the invented library and a generated clip.
@@ -25,7 +29,13 @@ const cacheDir = path.join(here, '.cache');
 const openMoviesDir = path.join(cacheDir, 'open-movies');
 const docsDir = path.join(root, 'docs/screenshots');
 const thumbsDir = path.join(root, 'public/environments');
+const storeDir = path.join(root, 'store/horizon/assets');
 const MOCK_PORT = 8096;
+const STORE = process.argv.includes('--store');
+// The store's screenshots (Meta asks for five), in listing order.
+const STORE_SHOTS = ['library-movies', 'playing', 'series', 'environment-station', 'environment-cabin'];
+// Clean renders the covers are drawn on (not listed as screenshots).
+const STORE_BACKGROUNDS = ['environment-theater', 'environment-home'];
 // Environments with a picker card captured here ("My room" is your real room).
 const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'void'];
 
@@ -54,7 +64,7 @@ const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 async function main() {
 	const open = await prepareOpenMovies(openMoviesDir);
 	const hasVideo = open || prepareMedia();
-	fs.mkdirSync(docsDir, { recursive: true });
+	fs.mkdirSync(STORE ? storeDir : docsDir, { recursive: true });
 	fs.mkdirSync(thumbsDir, { recursive: true });
 
 	const mock = open
@@ -70,8 +80,21 @@ async function main() {
 		page.on('pageerror', (error) => console.error('page error:', error.message));
 
 		const shot = async (name) => {
-			await page.screenshot({ path: path.join(docsDir, `${name}.png`) });
-			console.log(`docs/screenshots/${name}.png`);
+			if (!STORE) {
+				await page.screenshot({ path: path.join(docsDir, `${name}.png`) });
+				console.log(`docs/screenshots/${name}.png`);
+				return;
+			}
+			const index = STORE_SHOTS.indexOf(name);
+			if (index < 0 && !STORE_BACKGROUNDS.includes(name)) return;
+			// Same framing, rendered at twice the resolution.
+			await page.setViewport({ width: 1280, height: 720, deviceScaleFactor: 2 });
+			await wait(1200);
+			const file = index >= 0 ? `screenshot-${index + 1}-${name}.png` : `background-${name}.png`;
+			await page.screenshot({ path: path.join(storeDir, file) });
+			console.log(`store/horizon/assets/${file}`);
+			await page.setViewport({ width: 1280, height: 720 });
+			await wait(400);
 		};
 		// Helpers running in the page.
 		const look = (yaw, pitch) => page.evaluate((y, p) => {
@@ -203,6 +226,7 @@ async function main() {
 			await look(0, 0.02);
 			await wait(2800);
 			await shot(`environment-${key}`);
+			if (STORE) continue;
 			await page.setViewport({ width: 640, height: 360 });
 			await wait(400);
 			await page.screenshot({ path: path.join(thumbsDir, `${key}.jpg`), type: 'jpeg', quality: 82 });

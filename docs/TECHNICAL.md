@@ -160,6 +160,12 @@ does.
   `ANDROID_USER_HOME` to another folder.
 - Before uploading a new APK, raise `appVersionCode` and `appVersion` in
   `twa-manifest.json`. They version the wrapper, not the web app.
+- `npm run store-assets` renders the store art into `store/horizon/assets/`
+  (not committed): five screenshots at 2560 × 1440 (`capture.mjs --store`,
+  the README shots at twice the resolution) and the covers, logo and square
+  icon (`store-art.mjs`, sizes from Meta's asset guidelines).
+  `store/horizon/listing.md` holds the listing text, the reviewers' notes
+  (Jellyfin's demo server) and the data use and age rating answers.
 - The signing key lives outside the repository (its path is in
   `twa-manifest.json`). Back it up: every update must be signed with the same
   key, and a lost key means a new store app.

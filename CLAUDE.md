@@ -25,6 +25,10 @@ ships.
   licence and credit them. `npm test` uses the invented library and never
   downloads. Rerun it after changing an environment or the UI. The fake server
   is also handy for manual testing.
+- `npm run store-assets`: Meta Horizon Store screenshots, covers, logo and
+  icon into `store/horizon/assets/` (not committed); listing text in
+  `store/horizon/listing.md`. The privacy policy is `public/privacy.html`:
+  update it if the app starts storing or sending anything new.
 - `npm run package:horizon`: builds the signed Meta Horizon Store APK from
   `store/horizon/twa-manifest.json` (see "Meta Horizon Store package" in
   `docs/TECHNICAL.md`). The signing key and its password never go in the repo.

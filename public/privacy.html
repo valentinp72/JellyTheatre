@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<meta name="theme-color" content="#0b0710">
+		<link rel="icon" href="icon.svg" type="image/svg+xml">
+		<title>JellyTheatre privacy policy</title>
+		<style>
+			:root { color-scheme: dark; }
+			body {
+				margin: 0; padding: 32px 16px 64px;
+				background: #0b0710; color: #ece8f1;
+				font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+			}
+			main { max-width: 720px; margin: 0 auto; }
+			h1 { font-size: 1.8rem; margin: 0 0 4px; }
+			h2 { font-size: 1.15rem; margin: 32px 0 8px; color: #d8b7e6; }
+			p, li { color: #d6d0de; }
+			.muted { color: #a39cad; }
+			a { color: #5cc8f0; }
+			header { display: flex; gap: 14px; align-items: center; margin-bottom: 24px; }
+			ul { padding-left: 1.2em; }
+			code { background: #1d1626; padding: 1px 5px; border-radius: 4px; }
+		</style>
+	</head>
+	<body>
+		<main>
+			<header>
+				<img src="icon.svg" alt="" width="48" height="48">
+				<div>
+					<h1>Privacy policy</h1>
+					<p class="muted" style="margin:0">JellyTheatre · last updated 14 October 2026</p>
+				</div>
+			</header>
+
+			<p>JellyTheatre is a client for your own Jellyfin media server: a virtual
+			cinema to watch your library on a Meta Quest. It has no account of its
+			own, no analytics, no advertising and no tracking. Its developer runs no
+			server that receives your data.</p>
+
+			<h2>What is stored, and where</h2>
+			<p>On your headset only, in the browser's storage for this website:</p>
+			<ul>
+				<li>the address and name of your Jellyfin server;</li>
+				<li>your Jellyfin user name and the access token Jellyfin issues when you
+				sign in (never your password, which is only sent to your server when
+				you sign in with it);</li>
+				<li>a random device identifier, so your server can tell this headset's
+				sessions apart;</li>
+				<li>your settings (environment, subtitles, panel positions…).</li>
+			</ul>
+			<p>None of this leaves the headset except to your own Jellyfin server.</p>
+
+			<h2>What is sent to your Jellyfin server</h2>
+			<p>JellyTheatre talks to the server you choose, as any Jellyfin app does:
+			it signs in, reads your library, streams the films and episodes you play,
+			and reports playback progress so your watch history and resume points
+			stay in sync. That server is run by you or by whoever gave you access to
+			it, and its own privacy practices apply.</p>
+
+			<h2>Other services</h2>
+			<ul>
+				<li>The app itself is served by <a href="https://pages.github.com/">GitHub Pages</a>,
+				which, like any web host, receives your IP address when the app is
+				downloaded (see <a href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement">GitHub's privacy statement</a>).</li>
+				<li>The 3D engine may download the 3D models of the Quest controllers
+				from A-Frame's content delivery network (<code>cdn.aframe.io</code>),
+				and a model decoder from Google (<code>gstatic.com</code>).</li>
+				<li>When a title contains characters the app's font lacks (Japanese,
+				for example), matching fonts are downloaded from jsDelivr
+				(<code>cdn.jsdelivr.net</code>).</li>
+			</ul>
+			<p>These requests carry no personal data beyond what any web request
+			reveals (your IP address and device type).</p>
+
+			<h2>Removing your data</h2>
+			<p>In JellyTheatre, open <em>Settings → Account → Sign out</em>: the
+			access token is forgotten and your server is told the session ended.
+			Uninstalling the app does not erase this website's storage on the
+			headset; to remove everything, clear the site data of
+			<code>jellytheatre.vpelloin.eu</code> in the Quest Browser's settings.
+			Your watch history stays on your Jellyfin server.</p>
+
+			<h2>Children</h2>
+			<p>JellyTheatre is not directed at children and collects no data from
+			anyone.</p>
+
+			<h2>Contact</h2>
+			<p>Questions or requests: open an issue on
+			<a href="https://github.com/valentinp72/JellyTheatre/issues">github.com/valentinp72/JellyTheatre</a>.</p>
+
+			<p class="muted">JellyTheatre is an independent project, not affiliated with
+			the Jellyfin project or with Meta.</p>
+		</main>
+	</body>
+</html>
