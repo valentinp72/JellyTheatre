@@ -125,6 +125,33 @@ uploads hidden folders), and saved logins live in its `localStorage`.
 
 To build for another sub-path: `BASE_PATH=/some/path/ npm run build`.
 
+## Meta Horizon Store package
+
+The store app is the website wrapped by Meta's fork of Bubblewrap
+(`@meta-quest/bubblewrap-cli`): a signed APK that opens
+`https://jellytheatre.vpelloin.eu/` in *2D* mode (the lobby in a window; *Enter
+the theatre* starts VR as in the browser). Web updates reach store users without
+a new upload; only a change to the wrapper does.
+
+- `store/horizon/twa-manifest.json` is the whole configuration (package
+  `eu.vpelloin.jellytheatre`); the Android project Bubblewrap generates next to
+  it is ignored.
+- `npm run package:horizon` regenerates the project and builds
+  `store/horizon/app-release-signed.apk` (for the store) and an `.aab`. It
+  downloads the icons and the web manifest from the live site and prompts for
+  the keystore password unless `BUBBLEWRAP_KEYSTORE_PASSWORD` and
+  `BUBBLEWRAP_KEY_PASSWORD` are set. If `~/.android` isn't writable, set
+  `ANDROID_USER_HOME` to another folder.
+- Before uploading a new APK, raise `appVersionCode` and `appVersion` in
+  `twa-manifest.json`. They version the wrapper, not the web app.
+- The signing key lives outside the repository (its path is in
+  `twa-manifest.json`). Back it up: every update must be signed with the same
+  key, and a lost key means a new store app.
+- `public/.well-known/assetlinks.json` declares the key's SHA-256 fingerprint
+  for the package: without it, Horizon OS refuses to open the site as the app.
+  Regenerate it with `bubblewrap fingerprint generateAssetLinks` if the key or
+  package changes.
+
 ## Screenshots
 
 The README screenshots (`docs/screenshots/*.png`) and the environment picker's

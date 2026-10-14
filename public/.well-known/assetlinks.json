@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "eu.vpelloin.jellytheatre",
+        "sha256_cert_fingerprints": ["51:C1:1E:31:B9:32:BD:62:36:75:11:F4:EE:B1:53:B6:E7:AF:A7:35:AD:5B:7D:43:68:6A:33:0C:1C:C5:44:48"]
+      }
+    }]

@@ -25,6 +25,9 @@ ships.
   licence and credit them. `npm test` uses the invented library and never
   downloads. Rerun it after changing an environment or the UI. The fake server
   is also handy for manual testing.
+- `npm run package:horizon`: builds the signed Meta Horizon Store APK from
+  `store/horizon/twa-manifest.json` (see "Meta Horizon Store package" in
+  `docs/TECHNICAL.md`). The signing key and its password never go in the repo.
 - Quest testing: `npm run dev:https`, open `https://<pc-ip>:5173` on the Quest
   (plain HTTP on a LAN IP is not a secure context: no WebXR). Optional: USB +
   `adb reverse tcp:5173 tcp:5173`, then open
