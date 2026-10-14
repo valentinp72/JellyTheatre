@@ -115,8 +115,9 @@ the server's decision before you press Play.
 | Hold the Meta button | Recenter the view |
 
 Settings open from the library's header, or from the gear on the controls
-during a film. They are grouped in tabs: Playback, Subtitles, Display and
-View.
+during a film. They are grouped in tabs: Playback, Subtitles, Display, View
+and Account (sign out, to sign in again as someone else or on another
+server, right from VR).
 
 ## Roadmap
 

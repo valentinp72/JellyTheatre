@@ -5,13 +5,15 @@
 // (on-screen + physical keyboard). Clicking a card opens a details view
 // (movie / episode) or a series view (seasons and episodes), where items can
 // be marked watched or favourite. Emits `play-item` { item, startPosition,
-// mediaSourceId } and `refresh-request`.
+// mediaSourceId } and `refresh-request`. While signed out (in the scene), it
+// shows the sign-in view instead, which emits `signed-in`.
 
 import { describeMedia, describeTranscodeReason } from '../jellyfin/device-profile.js';
 import { createSources, episodeNumber, resumeSeconds, runtimeLabel, SORTS } from '../jellyfin/library.js';
 import { resolvePlayback } from '../jellyfin/playback.js';
 import { formatTime } from './player-controls.js';
 import './episode-card.js';
+import './sign-in-view.js';
 import { PLAYBACK_COLORS } from './poster.js';
 import { truncate } from './text.js';
 import { COLORS, entity, setInteractiveVisible, whenLoaded } from './widgets.js';
@@ -93,6 +95,7 @@ AFRAME.registerComponent('library-panel', {
 		this.searchText = '';
 		this.loadToken = 0;
 		this.searchTimer = null;
+		this.signInActive = false;
 
 		this.el.append(entity({ 'ui-rect': `width: ${WIDTH}; height: ${HEIGHT}; radius: 0.04; opacity: 0.95` }));
 		this.heading = entity({ position: `${LEFT} ${TOP - 0.065} 0.002`, 'ui-text': 'value: Now showing; fontSize: 0.05; weight: bold; anchorX: left' });
@@ -109,7 +112,9 @@ AFRAME.registerComponent('library-panel', {
 		this.buildDetail();
 		this.buildSeries();
 		this.buildGenres();
-
+		this.signIn = entity({ 'sign-in-view': '' });
+		this.signIn.addEventListener('keyboard-change', () => this.updateKeyboard());
+		this.el.appendChild(this.signIn);
 
 		this.keyboard = this.data.keyboard;
 		this.keyboard.addEventListener('key', (event) => this.onKey(event.detail.key));
@@ -383,7 +388,12 @@ AFRAME.registerComponent('library-panel', {
 		this.api = null;
 		this.sources = null;
 		this.stack = [];
-		this.heading.setAttribute('ui-text', 'value', 'Now showing');
+		this.render();
+	},
+
+	/** Whether to offer signing in here (while signed out, in the scene). */
+	setSignInActive(active) {
+		this.signInActive = active;
 		this.render();
 	},
 
@@ -525,6 +535,7 @@ AFRAME.registerComponent('library-panel', {
 	},
 
 	onKey(key) {
+		if (!this.searchActive()) return;
 		if (key === 'Backspace') this.searchText = this.searchText.slice(0, -1);
 		else if (key === 'Clear') this.searchText = '';
 		else if (this.searchText.length < 40) this.searchText += key;
@@ -570,14 +581,31 @@ AFRAME.registerComponent('library-panel', {
 		this.show(this.detail, signedIn && view?.type === 'detail');
 		this.show(this.series, signedIn && view?.type === 'series');
 		this.show(this.genres, signedIn && view?.type === 'genres');
-		this.keyboard.components['ui-keyboard']?.setVisible(this.searchActive() && signedIn);
-		this.setMessage(signedIn ? '' : 'Sign in from the lobby to see your library.');
+		const signingIn = !signedIn && this.visible && this.signInActive;
+		const signIn = this.signInView();
+		if (signIn) signIn.setActive(signingIn);
+		else whenLoaded(this.signIn, () => this.render());
+		this.updateKeyboard();
+		if (!signedIn) this.heading.setAttribute('ui-text', 'value', signingIn ? 'Welcome to JellyTheatre' : 'Now showing');
+		this.setMessage(signedIn || signingIn ? '' : 'Sign in from the lobby to see your library.');
 		if (!signedIn || !this.visible) return;
 
 		if (!view) this.renderGrid();
 		else if (view.type === 'detail') this.renderDetail(view);
 		else if (view.type === 'genres') this.renderGenres(view);
 		else this.renderSeries(view);
+	},
+
+	/** The sign-in view's component, once initialized. */
+	signInView() {
+		return this.signIn.hasLoaded ? this.signIn.components['sign-in-view'] : null;
+	},
+
+	/** The on-screen keyboard: for the search, or for signing in. */
+	updateKeyboard() {
+		const signIn = this.signInView();
+		const searching = this.searchActive() && this.sources !== null;
+		this.keyboard.components['ui-keyboard']?.setVisible(searching || Boolean(signIn?.needsKeyboard()));
 	},
 
 	setMessage(text) {

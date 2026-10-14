@@ -1,14 +1,17 @@
 // 2D lobby shown before entering the theatre: server selection, sign-in
 // (Quick Connect or password) and the "enter" button. Plain DOM, so it works
-// in the Quest Browser's flat window and on any desktop browser.
+// in the Quest Browser's flat window and on any desktop browser. The Horizon
+// Store app skips it: it signs in from the library panel, in VR.
 
 import {
 	connectToServer,
+	describeError,
 	fetchCurrentUser,
 	isQuickConnectEnabled,
 	loginWithPassword,
 	logout,
 	quickConnect,
+	storeSignIn,
 } from '../jellyfin/auth.js';
 import { createApi } from '../jellyfin/client.js';
 import { getLastServer, loadSession, saveSession, setLastServer } from '../jellyfin/storage.js';
@@ -34,6 +37,7 @@ export function createLobby({ onSignedIn, onSignedOut, onEnter }) {
 	/** Signed-in session. */
 	let current = null;
 	let quickConnectAbort = null;
+	let currentStep = null;
 
 	bind('version', __APP_VERSION__);
 	document.getElementById('server-insecure-hint').hidden = location.protocol !== 'https:';
@@ -43,6 +47,7 @@ export function createLobby({ onSignedIn, onSignedOut, onEnter }) {
 	}
 
 	function showStep(step) {
+		currentStep = step;
 		for (const section of root.querySelectorAll('[data-step]')) {
 			section.hidden = section.dataset.step !== step;
 		}
@@ -103,27 +108,20 @@ export function createLobby({ onSignedIn, onSignedOut, onEnter }) {
 		const enabled = await isQuickConnectEnabled(pending.api);
 		qcBox.hidden = !enabled;
 		passwordDetails.open = !enabled;
-		if (enabled) startQuickConnect();
+		// Hidden (in the scene): no code nobody sees. It starts when shown.
+		if (enabled && !root.hidden) startQuickConnect();
 		else passwordForm.elements.username.focus();
 	}
 
 	/** @param {import('@jellyfin/sdk/lib/generated-client/models').AuthenticationResult} result */
 	async function completeSignIn(result) {
-		stopQuickConnect();
 		const { api, serverName } = pending;
-		api.update({ accessToken: result.AccessToken });
-		saveSession({
-			serverUrl: api.basePath,
-			serverName,
-			accessToken: result.AccessToken,
-			userId: result.User.Id,
-			userName: result.User.Name,
-		});
-		pending = null;
-		setSignedIn({ api, user: result.User, serverName });
+		setSignedIn(storeSignIn(api, serverName, result));
 	}
 
 	function setSignedIn(session) {
+		stopQuickConnect();
+		pending = null;
 		current = session;
 		bind('userName', session.user.Name);
 		bind('serverName', session.serverName);
@@ -200,36 +198,43 @@ export function createLobby({ onSignedIn, onSignedOut, onEnter }) {
 		} else if (action === 'enter') {
 			onEnter();
 		} else if (action === 'logout') {
-			const { api, serverName } = current;
-			current = null;
-			saveSession(null);
-			onSignedOut();
-			await logout(api);
+			const { api, serverName } = await signOut();
 			pending = { api: createApi(api.basePath), serverName };
 			await showLogin();
 		}
 	});
 
+	/** Forgets the session; returns the one that was signed in. */
+	async function signOut() {
+		const previous = current;
+		current = null;
+		saveSession(null);
+		onSignedOut();
+		await logout(previous.api);
+		return previous;
+	}
+
 	return {
 		restore,
+		/** Signed in from VR (the store app's sign-in view). */
+		setSignedIn,
+		/** Signed out from VR: the lobby asks for the server again. */
+		async signOut() {
+			if (!current) return;
+			await signOut();
+			serverInput.value = getLastServer();
+			showStep('server');
+		},
 		show() {
 			root.hidden = false;
+			if (currentStep === 'login' && !qcBox.hidden && !quickConnectAbort) startQuickConnect();
 		},
 		hide() {
 			root.hidden = true;
+			stopQuickConnect();
 		},
 		setXrHint(text) {
 			document.getElementById('xr-hint').textContent = text;
 		},
 	};
-}
-
-function describeError(error) {
-	const status = error?.response?.status;
-	if (status === 401) return 'Wrong username or password.';
-	if (status) return `The server answered with an error (HTTP ${status}).`;
-	if (error?.code === 'ERR_NETWORK') {
-		return 'Could not reach the server. Check the address, your network, and that the server uses HTTPS if this page does.';
-	}
-	return error?.message || String(error);
 }

@@ -25,6 +25,11 @@ import { getSetting, setSetting } from './settings.js';
 registerSW({ immediate: true });
 
 const CONTROLS_HIDE_DELAY_MS = 5000;
+// The Meta Horizon Store app (store/horizon/) opens /?app=horizon. It is an
+// immersive app: the headset shows a loading screen until the page enters VR,
+// and never shows the 2D lobby, so the page enters VR by itself (allowed
+// without a click there) and signs in from the library panel.
+const STORE_APP = new URLSearchParams(location.search).get('app') === 'horizon';
 // Rendering resolution when "Sharper rendering" is on (≈ Quest 3 panel resolution).
 const HIGH_RESOLUTION_SCALE = 1.25;
 
@@ -52,6 +57,8 @@ let grabbingControls = false;
 let switchingSession = false;
 // Episode whose "Up next" prompt was dismissed: don't offer again at its end.
 let upNextDismissedFor = null;
+// The stored session has been checked (until then, don't offer to sign in).
+let sessionRestored = false;
 
 const sceneReady = new Promise((resolve) => {
 	if (sceneEl.hasLoaded) resolve();
@@ -227,6 +234,7 @@ const lobby = createLobby({
 		player.setSession(api, user.Id, session.sources);
 		await sceneReady;
 		library().setSession(api, user);
+		updateSignIn();
 	},
 	async onSignedOut() {
 		session = null;
@@ -234,6 +242,7 @@ const lobby = createLobby({
 		await sceneReady;
 		backToHome();
 		library().clearSession();
+		updateSignIn();
 	},
 	onEnter() {
 		lobby.hide();
@@ -251,17 +260,29 @@ const lobby = createLobby({
 function showFlatScene() {
 	lobby.hide();
 	backButton.hidden = false;
+	updateSignIn();
 }
 
 function showLobby() {
 	backButton.hidden = true;
 	if (player.isActive) player.video.pause();
 	lobby.show();
+	updateSignIn();
+}
+
+/** Signed out in the scene (the store app, or after "Sign out"): sign in from the library panel. */
+function updateSignIn() {
+	if (!sceneEl.hasLoaded) return;
+	const inScene = document.getElementById('lobby').hidden;
+	library().setSignInActive(!session && sessionRestored && inScene);
 }
 
 backButton.addEventListener('click', showLobby);
 sceneEl.addEventListener('exit-vr', () => {
-	if (!switchingSession) showLobby();
+	if (switchingSession) return;
+	// The store app has nothing to show outside VR: go back in.
+	if (STORE_APP) enterImmersive().catch(showLobby);
+	else showLobby();
 });
 sceneEl.addEventListener('enter-vr', () => {
 	// No foveation in high quality: it blurs the edges of menus and text.
@@ -290,7 +311,12 @@ sceneReady.then(() => {
 		else if (detail.name === 'resetScreen') screenEl.components['grab-move']?.reset();
 		else if (detail.name === 'recenter') view.recenter();
 		else if (detail.name === 'backToSeat') view.backToSeat();
+		else if (detail.name === 'signOut') {
+			closeSettings();
+			lobby.signOut();
+		}
 	});
+	libraryEl.addEventListener('signed-in', ({ detail }) => lobby.setSignedIn(detail));
 	controlsEl.addEventListener('grab-start', () => {
 		grabbingControls = true;
 		showControls();
@@ -380,5 +406,24 @@ async function detectVr() {
 		: 'No VR headset detected: the theatre opens in 3D preview mode (drag to look around).');
 }
 
-detectVr();
-lobby.restore();
+const vrDetected = detectVr();
+// The store app never shows the lobby (hidden before it can start Quick Connect).
+if (STORE_APP) lobby.hide();
+lobby.restore().finally(() => {
+	sessionRestored = true;
+	sceneReady.then(updateSignIn);
+});
+
+if (STORE_APP) {
+	Promise.all([vrDetected, sceneReady]).then(() => {
+		if (!vrSupported) {
+			showLobby();
+			return;
+		}
+		enterImmersive().catch((error) => {
+			console.error(error);
+			showLobby();
+		});
+		updateSignIn();
+	});
+}

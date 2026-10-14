@@ -291,6 +291,7 @@ export function startMockJellyfin({ port = 8096, mediaDir, library = 'invented' 
 				case '/QuickConnect/Initiate': return send(200, { Code: '381947', Secret: 's', Authenticated: false });
 				case '/QuickConnect/Connect': return send(200, { Authenticated: false, Secret: 's' });
 				case '/Users/Me': return send(200, { Id: 'user', Name: 'Alex' });
+				case '/Users/AuthenticateByName': return send(200, { AccessToken: 'token', ServerId: 'fake', User: { Id: 'user', Name: 'Alex' } });
 				case '/UserItems/Resume': return send(200, { Items: [movies[1], movies[4], inProgress], TotalRecordCount: 3 });
 				case '/Shows/NextUp': return send(200, url.searchParams.get('seriesId') ? { Items: [inProgress] } : { Items: [inProgress], TotalRecordCount: 1 });
 				case '/Items/Latest': {

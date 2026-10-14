@@ -129,9 +129,20 @@ To build for another sub-path: `BASE_PATH=/some/path/ npm run build`.
 
 The store app is the website wrapped by Meta's fork of Bubblewrap
 (`@meta-quest/bubblewrap-cli`): a signed APK that opens
-`https://jellytheatre.vpelloin.eu/` in *2D* mode (the lobby in a window; *Enter
-the theatre* starts VR as in the browser). Web updates reach store users without
-a new upload; only a change to the wrapper does.
+`https://jellytheatre.vpelloin.eu/?app=horizon` in *immersive* mode. Web
+updates reach store users without a new upload; only a change to the wrapper
+does.
+
+- Immersive, not 2D: a 2D app is a window, where `isSessionSupported('immersive-vr')`
+  is false (tested on a Quest 3, Quest Browser 144). In immersive mode the
+  headset shows a loading screen until the page starts a session, and may
+  start it without a click; it never shows the 2D page.
+- So with `?app=horizon` (main.js `STORE_APP`) the page hides the lobby,
+  enters VR by itself, and goes back in if the session ends. Signed out, the
+  library panel shows the sign-in view (src/ui/sign-in-view.js: server
+  address, Quick Connect code, or username and password on the on-screen
+  keyboard). The browser version keeps the lobby; there too the sign-in view
+  appears after *Settings → Account → Sign out*.
 
 - `store/horizon/twa-manifest.json` is the whole configuration (package
   `eu.vpelloin.jellytheatre`); the Android project Bubblewrap generates next to
@@ -277,3 +288,9 @@ The steps the project went through, all done. Next features are in the
         lockers, handrails, laptops, a hatch and cargo bags behind, objects
         drifting at about 1 cm/s that ease away before ever crossing between
         the eyes and the screen.
+- [x] **v0.2.2 – v0.2.3: Meta Horizon Store**
+  - [x] Served from `jellytheatre.vpelloin.eu`; Bubblewrap package
+        (immersive mode) with Digital Asset Links.
+  - [x] Sign-in in VR (Quick Connect or password), sign out from the
+        settings; the store app enters VR at launch. On-screen keyboard with
+        capitals and symbols.

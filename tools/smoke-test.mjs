@@ -60,7 +60,8 @@ async function main() {
 				}
 				await wait(200);
 			}
-			throw new Error(`${name}: timed out (last value: ${JSON.stringify(last)})`);
+			const pageErrors = errors.length ? `\nPage errors:\n${errors.join('\n')}` : '';
+			throw new Error(`${name}: timed out (last value: ${JSON.stringify(last)})${pageErrors}`);
 		};
 		const clickButton = (panel, label) => page.evaluate((panel, label) => {
 			const button = [...document.querySelectorAll(`${panel} [ui-button]`)].find((b) => b.getAttribute('ui-button').label.startsWith(label) && b.classList.contains('clickable'));
@@ -134,6 +135,27 @@ async function main() {
 		} else {
 			console.log('  - playback skipped (no ffmpeg)');
 		}
+
+		await clickButton('#library-panel', 'Settings');
+		await page.evaluate(() => document.querySelector('#settings-panel').components['settings-panel'].showList('account'));
+		await clickButton('#settings-panel', 'Sign out');
+		await expect('signing out offers to sign in, in the scene', () => document.querySelector('#library-panel [sign-in-view]').object3D.visible
+			&& document.querySelector('#keyboard').object3D.visible);
+		const type = (text) => page.evaluate((text) => {
+			const keyboard = document.querySelector('#keyboard');
+			for (const key of text) keyboard.emit('key', { key });
+		}, text);
+		await type(`localhost:${MOCK_PORT}`);
+		await clickButton('#library-panel [sign-in-view]', 'Connect');
+		await expect('Quick Connect code shown in VR', () => document.querySelector('[sign-in-view]').components['sign-in-view'].codeText.getAttribute('ui-text').value === '381947');
+		await clickButton('#library-panel [sign-in-view]', 'Sign in with a password');
+		await type('Alex');
+		await page.evaluate(() => document.querySelector('[sign-in-view]').components['sign-in-view'].fields.password.emit('click'));
+		await type('secret');
+		await clickButton('#library-panel [sign-in-view]', 'Sign in');
+		await expect('signed in from VR: the library is back', () => !document.querySelector('[sign-in-view]').object3D.visible
+			&& document.querySelectorAll('#library-panel [ui-poster].clickable').length >= 1
+			&& !document.querySelector('[data-step="ready"]').hidden);
 
 		if (errors.length) throw new Error(`Page errors:\n${errors.join('\n')}`);
 		console.log(`Smoke test passed in ${((Date.now() - started) / 1000).toFixed(1)} s.`);

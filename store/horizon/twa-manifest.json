@@ -14,7 +14,7 @@
   "enableNotifications": false,
   "enableMicrophone": false,
   "enableXRScene": false,
-  "startUrl": "/",
+  "startUrl": "/?app=horizon",
   "iconUrl": "https://jellytheatre.vpelloin.eu/icon-512.png",
   "maskableIconUrl": "https://jellytheatre.vpelloin.eu/icon-512-maskable.png",
   "splashScreenFadeOutDuration": 300,
@@ -34,10 +34,10 @@
   "enableSiteSettingsShortcut": false,
   "isChromeOSOnly": false,
   "isMetaQuest": true,
-  "horizonOSAppMode": "2D",
+  "horizonOSAppMode": "immersive",
   "fullScopeUrl": "https://jellytheatre.vpelloin.eu/",
   "minSdkVersion": 23,
-  "orientation": "landscape",
+  "orientation": "default",
   "fingerprints": [
     {
       "name": "release",

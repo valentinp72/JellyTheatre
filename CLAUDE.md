@@ -127,3 +127,7 @@ ships.
   space but parented to the rig, and every XR layer transform, must be
   recomputed on `rig-moved` / every frame.
 - The 2D lobby (`src/lobby/`) is plain DOM and must work without a headset.
+- The Horizon Store app (`?app=horizon`, `STORE_APP` in main.js) never shows
+  the lobby: it enters VR at launch and signs in from the library panel's
+  sign-in view (src/ui/sign-in-view.js). Anything the lobby offers must also
+  work from VR.

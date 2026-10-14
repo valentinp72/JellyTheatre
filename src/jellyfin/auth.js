@@ -3,6 +3,7 @@ import { getAuthenticationApi } from '@jellyfin/sdk/lib/utils/api/authentication
 import { getSessionApi } from '@jellyfin/sdk/lib/utils/api/session-api';
 import { getUserApi } from '@jellyfin/sdk/lib/utils/api/user-api';
 import { createApi, jellyfin } from './client.js';
+import { saveSession } from './storage.js';
 
 const QUICK_CONNECT_POLL_MS = 3000;
 
@@ -88,6 +89,36 @@ export async function fetchCurrentUser(api) {
 		if (error.response?.status === 401 || error.response?.status === 403) return null;
 		throw error;
 	}
+}
+
+/**
+ * Remembers a successful sign-in (Quick Connect or password) on this device.
+ * @param {import('@jellyfin/sdk').Api} api
+ * @param {string} serverName
+ * @param {import('@jellyfin/sdk/lib/generated-client/models').AuthenticationResult} result
+ * @returns {{ api: import('@jellyfin/sdk').Api, user: object, serverName: string }}
+ */
+export function storeSignIn(api, serverName, result) {
+	api.update({ accessToken: result.AccessToken });
+	saveSession({
+		serverUrl: api.basePath,
+		serverName,
+		accessToken: result.AccessToken,
+		userId: result.User.Id,
+		userName: result.User.Name,
+	});
+	return { api, user: result.User, serverName };
+}
+
+/** A sign-in error, in words for the user. */
+export function describeError(error) {
+	const status = error?.response?.status;
+	if (status === 401) return 'Wrong username or password.';
+	if (status) return `The server answered with an error (HTTP ${status}).`;
+	if (error?.code === 'ERR_NETWORK') {
+		return 'Could not reach the server. Check the address, your network, and that the server uses HTTPS if this page does.';
+	}
+	return error?.message || String(error);
 }
 
 /** @param {import('@jellyfin/sdk').Api} api */

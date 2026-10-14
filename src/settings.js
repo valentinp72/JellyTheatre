@@ -8,6 +8,7 @@ export const SETTING_CATEGORIES = [
 	{ id: 'subtitles', label: 'Subtitles' },
 	{ id: 'display', label: 'Display' },
 	{ id: 'view', label: 'View' },
+	{ id: 'account', label: 'Account' },
 ];
 
 /**
@@ -211,6 +212,14 @@ export const SETTING_DEFINITIONS = [
 		format: (value) => `${value > 0 ? '+' : ''}${value.toFixed(1)} s`,
 		label: 'Timing',
 		description: 'Show subtitles later (+) or earlier (−), for files where they are out of sync.',
+	},
+	{
+		name: 'signOut',
+		category: 'account',
+		type: 'action',
+		label: 'Sign out',
+		description: 'Forget your sign-in on this device. You can then sign in again, as someone else or on another server.',
+		action: 'Sign out',
 	},
 ];
 
