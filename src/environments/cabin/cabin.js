@@ -89,6 +89,8 @@ defineEnvironment('cabin', {
 			sceneEl: env.sceneEl,
 			screenLightPosition: new THREE.Vector3(0, SCREEN.y - 0.2, SCREEN.z + 1),
 			screenLightDistance: 9,
+			// A small room: the walls are close to the light.
+			screenLightScale: 0.35,
 			ambient: '#ffdcb8',
 			sky: '#ffd0a0',
 			ground: '#2a1a10',

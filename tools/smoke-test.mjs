@@ -145,6 +145,9 @@ async function main() {
 			const keyboard = document.querySelector('#keyboard');
 			for (const key of text) keyboard.emit('key', { key });
 		}, text);
+		await expect('the server field starts with https://', () => document.querySelector('[sign-in-view]').components['sign-in-view'].values.server === 'https://');
+		// The fake server is plain HTTP (fine on this HTTP page): erase the prefix.
+		await page.evaluate(() => document.querySelector('#keyboard').emit('key', { key: 'Clear' }));
 		await type(`localhost:${MOCK_PORT}`);
 		await clickButton('#library-panel [sign-in-view]', 'Connect');
 		await expect('Quick Connect code shown in VR', () => document.querySelector('[sign-in-view]').components['sign-in-view'].codeText.getAttribute('ui-text').value === '381947');

@@ -108,7 +108,8 @@ AFRAME.registerComponent('sign-in-view', {
 		if (active) {
 			// Back to the last server (after signing out, or a revoked token).
 			const last = getLastServer();
-			this.values.server = last;
+			// Started for the user (and erasable): almost every address needs it.
+			this.values.server = last || 'https://';
 			if (last) this.connect(last);
 			else this.showServer();
 		}
@@ -244,7 +245,7 @@ AFRAME.registerComponent('sign-in-view', {
 	submit() {
 		if (this.step === 'server') {
 			const address = this.values.server.trim();
-			if (address) this.connect(address);
+			if (address && !/^https?:\/\/$/i.test(address)) this.connect(address);
 			else {
 				this.error = 'Type the address of your Jellyfin server.';
 				this.render();

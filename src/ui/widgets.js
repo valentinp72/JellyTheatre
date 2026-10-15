@@ -88,6 +88,8 @@ AFRAME.registerComponent('ui-button', {
 		color: { type: 'color', default: COLORS.button },
 		hoverColor: { type: 'color', default: COLORS.buttonHover },
 		activeColor: { type: 'color', default: COLORS.accent },
+		// Brief color when clicked ('' for none): feedback for keyboard keys.
+		pressColor: { type: 'string', default: '' },
 		active: { type: 'boolean', default: false },
 		disabled: { type: 'boolean', default: false },
 		align: { type: 'string', default: 'center', oneOf: ['left', 'center'] },
@@ -101,6 +103,8 @@ AFRAME.registerComponent('ui-button', {
 
 	init() {
 		this.hovered = 0;
+		this.pressed = false;
+		this.pressTimer = null;
 		this.icon = null;
 		this.el.dataset.interactive = '';
 		this.el.setAttribute('ui-rect', '');
@@ -120,7 +124,18 @@ AFRAME.registerComponent('ui-button', {
 		});
 		// Swallow clicks while disabled.
 		this.el.addEventListener('click', (event) => {
-			if (this.data.disabled) event.stopImmediatePropagation();
+			if (this.data.disabled) {
+				event.stopImmediatePropagation();
+				return;
+			}
+			if (!this.data.pressColor) return;
+			this.pressed = true;
+			this.refresh();
+			clearTimeout(this.pressTimer);
+			this.pressTimer = setTimeout(() => {
+				this.pressed = false;
+				this.refresh();
+			}, 140);
 		}, { capture: true });
 	},
 
@@ -158,6 +173,7 @@ AFRAME.registerComponent('ui-button', {
 		const d = this.data;
 		let color = d.active ? d.activeColor : d.color;
 		if (this.hovered > 0 && !d.disabled) color = d.hoverColor;
+		if (this.pressed) color = d.pressColor;
 		this.el.setAttribute('ui-rect', { width: d.width, height: d.height, radius: d.radius >= 0 ? d.radius : d.height * 0.3, color });
 	},
 });

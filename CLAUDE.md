@@ -30,7 +30,7 @@ ships.
   `store/horizon/listing.md`. The privacy policy is `public/privacy.html`:
   update it if the app starts storing or sending anything new.
 - `npm run package:horizon`: builds the signed Meta Horizon Store APK from
-  `store/horizon/twa-manifest.json` (see "Meta Horizon Store package" in
+  `store/horizon/twa-manifest.json` (see "Meta Horizon Store app" in
   `docs/TECHNICAL.md`). The signing key and its password never go in the repo.
 - Quest testing: `npm run dev:https`, open `https://<pc-ip>:5173` on the Quest
   (plain HTTP on a LAN IP is not a secure context: no WebXR). Optional: USB +

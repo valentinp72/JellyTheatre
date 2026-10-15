@@ -25,6 +25,8 @@ export class EnvironmentLighting {
 	 * @param {Element} options.sceneEl
 	 * @param {THREE.Vector3} options.screenLightPosition where the screen light sits (in front of the screen)
 	 * @param {number} [options.screenLightDistance]
+	 * @param {number} [options.screenLightScale] strength of the screen light: 1 in the
+	 * big theatre; less in a small room, whose walls are much closer to the light
 	 * @param {string} [options.ambient] ambient color
 	 * @param {string} [options.sky] hemisphere sky color
 	 * @param {string} [options.ground] hemisphere ground color
@@ -35,6 +37,7 @@ export class EnvironmentLighting {
 		sceneEl,
 		screenLightPosition,
 		screenLightDistance = 30,
+		screenLightScale = 1,
 		ambient = '#ffe9d6',
 		sky = '#ffd9b0',
 		ground = '#2a1820',
@@ -42,6 +45,7 @@ export class EnvironmentLighting {
 		hemiIntensity = 3.1,
 	}) {
 		this.sceneEl = sceneEl;
+		this.screenLightScale = screenLightScale;
 		this.ambientIntensity = ambientIntensity;
 		this.hemiIntensity = hemiIntensity;
 		this.level = 1;
@@ -102,7 +106,8 @@ export class EnvironmentLighting {
 	}
 
 	screenColor(picture) {
-		const strength = SCREEN_LIGHT[getSetting('screenLight')] ?? 1;
+		const setting = SCREEN_LIGHT[getSetting('screenLight')] ?? 1;
+		const strength = setting * this.screenLightScale;
 		const glow = this.glow;
 		this.lastPicture = picture;
 		if (picture) {
@@ -126,7 +131,7 @@ export class EnvironmentLighting {
 			glow.playing = false;
 			glow.brightness = 0;
 		}
-		for (const callback of this.reactive) callback({ color: glow.target, brightness: glow.brightness * strength, playing: glow.playing });
+		for (const callback of this.reactive) callback({ color: glow.target, brightness: glow.brightness * setting, playing: glow.playing });
 	}
 
 	apply() {

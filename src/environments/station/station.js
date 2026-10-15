@@ -78,9 +78,13 @@ defineEnvironment('station', {
 			sceneEl: env.sceneEl,
 			screenLightPosition: new THREE.Vector3(0, SCREEN.y, SCREEN.z + 0.6),
 			screenLightDistance: 4,
+			// The panels are right next to the screen, and pale: a little light goes far.
+			screenLightScale: 0.06,
 			ambient: '#e6eeff',
 			sky: '#eef3ff',
 			ground: '#3a4252',
+			ambientIntensity: 0.4,
+			hemiIntensity: 1.2,
 		});
 		lighting.addFixture(m.light, { min: 0.12 });
 		lighting.addFixture(displays.material, { min: 0.35 });

@@ -6,6 +6,8 @@ import { createApi, jellyfin } from './client.js';
 import { saveSession } from './storage.js';
 
 const QUICK_CONNECT_POLL_MS = 3000;
+const HTTPS_HELP = 'A server only reachable over plain HTTP (like http://192.168.1.10:8096) can\'t be used: give it an HTTPS address, for example with a reverse proxy (Caddy, Nginx…) and a domain name.';
+const PLAIN_HTTP = 'JellyTheatre can only connect over HTTPS: browsers block plain HTTP (http://) addresses in secure apps. Use your server\'s https:// address, or give it one, for example with a reverse proxy (Caddy, Nginx…) and a domain name.';
 
 /**
  * Resolves what the user typed ("jellyfin.home", "192.168.1.2:8096"…) into a
@@ -14,14 +16,16 @@ const QUICK_CONNECT_POLL_MS = 3000;
  * @returns {Promise<{ api: import('@jellyfin/sdk').Api, serverName: string, version: string }>}
  */
 export async function connectToServer(input) {
-	let candidates = await jellyfin.discovery.getRecommendedServerCandidates(input.trim(), RecommendedServerInfoScore.OK);
-	if (window.isSecureContext && location.protocol === 'https:') {
-		// An HTTPS page cannot load media from an HTTP server (mixed content).
-		candidates = candidates.filter((server) => server.address.startsWith('https:'));
-	}
+	const address = input.trim();
+	// An HTTPS page cannot reach an HTTP server (mixed content): the browser
+	// blocks it, so it can't even be detected. Explain instead.
+	const httpsOnly = window.isSecureContext && location.protocol === 'https:';
+	if (httpsOnly && /^http:\/\//i.test(address)) throw new Error(PLAIN_HTTP);
+	let candidates = await jellyfin.discovery.getRecommendedServerCandidates(address, RecommendedServerInfoScore.OK);
+	if (httpsOnly) candidates = candidates.filter((server) => server.address.startsWith('https:'));
 	const best = jellyfin.discovery.findBestServer(candidates);
 	if (!best) {
-		throw new Error('No Jellyfin server found at this address. Check the URL, and that the server is reachable over HTTPS.');
+		throw new Error(`No Jellyfin server answered at this address over HTTPS. Check the address and your network.${httpsOnly ? ` ${HTTPS_HELP}` : ''}`);
 	}
 	return {
 		api: createApi(best.address),
@@ -116,7 +120,7 @@ export function describeError(error) {
 	if (status === 401) return 'Wrong username or password.';
 	if (status) return `The server answered with an error (HTTP ${status}).`;
 	if (error?.code === 'ERR_NETWORK') {
-		return 'Could not reach the server. Check the address, your network, and that the server uses HTTPS if this page does.';
+		return 'Could not reach the server. Check the address and your network, and that the server is reachable over HTTPS.';
 	}
 	return error?.message || String(error);
 }

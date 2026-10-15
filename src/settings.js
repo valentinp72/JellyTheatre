@@ -83,6 +83,18 @@ export const SETTING_DEFINITIONS = [
 		description: 'During intros, recaps and credits (when Jellyfin has detected them).',
 	},
 	{
+		name: 'clockFormat',
+		category: 'playback',
+		type: 'choice',
+		default: '24h',
+		options: [
+			{ value: '24h', label: '24-hour' },
+			{ value: '12h', label: '12-hour' },
+		],
+		label: 'Clock',
+		description: 'How the controls show the time of day and when the film ends.',
+	},
+	{
 		name: 'menuOnScreen',
 		category: 'display',
 		type: 'boolean',

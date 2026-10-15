@@ -1,14 +1,18 @@
 // On-screen keyboard for typing in VR (the system keyboard isn't available
 // inside an immersive session). Emits `key` { key } where key is a character,
 // 'Backspace' or 'Clear'. Shift toggles capitals; "?123" shows the symbols
-// (server addresses and passwords need them).
+// (server addresses and passwords need them). Keys click softly and flash a
+// muted color when pressed.
 
+import { playClick } from './click-sound.js';
 import { entity, setInteractiveVisible } from './widgets.js';
 
 const LAYOUTS = {
 	letters: ['1234567890', 'qwertyuiop', 'asdfghjkl\'', 'zxcvbnm-.'],
 	symbols: ['1234567890', '@#$%&*+=/\\', '!?:;_~^`|"', '()[]{}<>,'],
 };
+// A little lighter than the hover color: visible, not flashy.
+const PRESS_COLOR = '#5d4b74';
 const KEY = 0.072;
 const GAP = 0.01;
 
@@ -26,9 +30,12 @@ AFRAME.registerComponent('ui-keyboard', {
 		const addKey = (x, y, w, onClick) => {
 			const button = entity({
 				position: `${x} ${y} 0.002`,
-				'ui-button': { width: w, height: KEY, fontSize: 0.03 },
+				'ui-button': { width: w, height: KEY, fontSize: 0.03, pressColor: PRESS_COLOR },
 			});
-			button.addEventListener('click', onClick);
+			button.addEventListener('click', () => {
+				playClick();
+				onClick();
+			});
 			this.el.appendChild(button);
 			return button;
 		};

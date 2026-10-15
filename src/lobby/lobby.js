@@ -133,7 +133,7 @@ export function createLobby({ onSignedIn, onSignedOut, onEnter }) {
 	async function restore() {
 		const stored = loadSession();
 		if (!stored) {
-			serverInput.value = getLastServer();
+			serverInput.value = getLastServer() || 'https://';
 			showStep('server');
 			return;
 		}
@@ -222,7 +222,7 @@ export function createLobby({ onSignedIn, onSignedOut, onEnter }) {
 		async signOut() {
 			if (!current) return;
 			await signOut();
-			serverInput.value = getLastServer();
+			serverInput.value = getLastServer() || 'https://';
 			showStep('server');
 		},
 		show() {

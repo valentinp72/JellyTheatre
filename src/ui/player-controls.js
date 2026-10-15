@@ -32,7 +32,10 @@ export function formatTime(seconds) {
 
 /** Time of day, as the headset's locale writes it ("21:14", "9:14 PM"). */
 function formatClock(date) {
-	return date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+	const options = getSetting('clockFormat') === '12h'
+		? { hour: 'numeric', minute: '2-digit', hour12: true }
+		: { hour: '2-digit', minute: '2-digit', hourCycle: 'h23' };
+	return date.toLocaleTimeString([], options);
 }
 
 const SUBTITLE_OFFSET = SETTING_DEFINITIONS.find((setting) => setting.name === 'subtitleOffset');
