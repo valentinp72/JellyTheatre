@@ -23,7 +23,9 @@ function tinyClip(dir) {
 	const result = spawnSync('ffmpeg', [
 		'-hide_banner', '-loglevel', 'error', '-y',
 		'-f', 'lavfi', '-i', 'testsrc2=size=320x180:rate=24',
-		'-t', '12', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-movflags', '+faststart', path.join(dir, 'test.mp4'),
+		'-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000',
+		'-t', '12', '-pix_fmt', 'yuv420p', '-c:v', 'libx264', '-c:a', 'aac', '-af', 'pan=5.1|FL=c0|FR=c0|BL=0.5*c0',
+		'-movflags', '+faststart', path.join(dir, 'test.mp4'),
 	]);
 	fs.writeFileSync(path.join(dir, 'test.vtt'), 'WEBVTT\n\n00:00:00.000 --> 00:00:12.000\nTest.\n');
 	return result.status === 0;
@@ -116,6 +118,13 @@ async function main() {
 			await expect('a film plays', () => {
 				const video = document.querySelector('video');
 				return !video.paused && video.currentTime > 0.3;
+			});
+			await expect('5.1 sound from virtual speakers', () => {
+				const spatial = document.querySelector('#player-controls').components['player-controls'].player.audio?.spatial;
+				if (!spatial?.enabled || spatial.heardLayout() !== '5.1') return false;
+				// The left speaker is farther from the right ear, and the other way round.
+				const [left, right] = spatial.speakers;
+				return left.ears[1].lateral > 0 && left.ears[0].lateral === 0 && right.ears[0].lateral > 0;
 			});
 			await page.evaluate(() => {
 				const player = document.querySelector('#player-controls').components['player-controls'].player;

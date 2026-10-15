@@ -256,7 +256,9 @@ AFRAME.registerComponent('player-controls', {
 		this.title.setAttribute('ui-text', 'value', truncate(title, 42));
 		this.subtitle.setAttribute('ui-text', 'value', truncate(subtitle, 60));
 		const mode = player.loading ? { text: 'Loading…', color: COLORS.muted } : MODE_LABELS[player.source?.mode];
-		this.mode.setAttribute('ui-text', { value: mode?.text ?? '', color: mode?.color ?? COLORS.muted });
+		// What the sound actually carries (a browser may downmix before us).
+		const sound = !player.loading && player.soundLayout ? ` · ${player.soundLayout} sound` : '';
+		this.mode.setAttribute('ui-text', { value: (mode?.text ?? '') + sound, color: mode?.color ?? COLORS.muted });
 		whenLoaded(this.buttons.play, () => {
 			this.buttons.play.setAttribute('ui-button', 'icon', player.video.paused ? 'play' : 'pause');
 			this.buttons.audio.setAttribute('ui-button', 'disabled', (player.source?.audioTracks.length ?? 0) < 2);

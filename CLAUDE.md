@@ -83,7 +83,10 @@ ships.
 - three.js cameras ignore the scale inherited from their parent: size
   offscreen cameras in world units (see `fitCamera` in src/xr/panel-layer.js).
 - Never rely on `video.volume` (ignored by the Quest Browser): volume goes
-  through the Web Audio gain in Player.
+  through the Web Audio gain in Player. The film's audio then goes to
+  SpatialAudio (src/player/spatial-audio.js), one virtual speaker per
+  channel, never downmixed first (no browser HRTF: it dulls the sound); the AudioContext is only connected once it runs
+  (a suspended one would silence the film).
 - User settings live in src/settings.js (`SETTING_DEFINITIONS`, types
   boolean / choice / action); the in-VR settings panel (src/ui/settings-panel.js)
   is generated from that list. No settings in the 2D lobby.

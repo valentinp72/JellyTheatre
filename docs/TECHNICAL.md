@@ -48,6 +48,25 @@ delivery (converted to WebVTT, cheap) and PGS is fetched as-is (libpgs):
 neither forces a transcode. VobSub and DVB would need burn-in, so they are not
 offered.
 
+### Sound
+
+The video element's audio goes through Web Audio (`Player.ensureAudioGraph`,
+created at Play so the click counts as a gesture): a volume gain (the Quest
+Browser ignores `video.volume`), then `SpatialAudio`. Each channel keeps its
+own signal and plays from a virtual speaker: left, centre and right on the
+screen (its edges and centre), surrounds at ±110° (5.1) or sides ±90° and
+backs ±150° (7.1), relative to the line from the head to the screen. The LFE
+goes to both ears at -6 dB, and a -3 dB trim keeps dialogue at the level of
+the plain downmix. The head pose is applied every frame.
+
+Not the browser's HRTF panner: tested on the Quest, it made the whole film
+dull. A spherical head model instead: the ear facing a speaker gets the
+signal untouched, the other ear a delay (Woodworth, up to 0.66 ms) and a
+treble cut (high shelf at 1.8 kHz, up to -12 dB). The centre channel reaches
+both ears unfiltered. The controls show what the sound actually carries
+(`5.1 sound`), measured per channel: a browser may downmix before Web Audio.
+Off, the browser downmixes to stereo.
+
 ### HTTPS
 
 WebXR and service workers need a secure context, and an HTTPS page can't reach
@@ -165,3 +184,5 @@ Next features are in the [README roadmap](../README.md#roadmap).
   light in small rooms and a dimmer space station.
 - **v0.2.8**: the library fills the big screen edge to edge (the idle screen
   returns to 16:9 after a film).
+- **v0.3.0**: virtual surround (cinema speakers around the seat, a head model
+  that keeps the treble).

@@ -244,7 +244,12 @@ AFRAME.registerComponent('video-screen', {
 	tick(time) {
 		// The rig can move (walking, recentering): keep the layer on the screen.
 		this.updateLayerTransform();
-		if (this.player?.isActive) this.player.updateSubtitle();
+		if (this.player?.isActive) {
+			this.player.updateSubtitle();
+			// The sound comes from this screen (and the head turns).
+			const camera = this.el.sceneEl.camera;
+			if (camera) this.player.updateSpatialAudio(camera, this.el.object3D, this.size.width);
+		}
 		this.fitSubtitleBox();
 		if (this.imageSubtitleCanvas && time - this.lastImageSubtitleUpdate > IMAGE_SUBTITLE_INTERVAL_MS) {
 			// libpgs redraws its canvas when the subtitle changes: re-upload it.

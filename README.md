@@ -69,6 +69,10 @@ the server's decision before you press Play.
 - **Seek bar previews** (thumbnails) and **chapter marks**.
 - **Up next**: when the credits start, the next episode is offered with a
   countdown. You can cancel it in one click or turn autoplay off.
+- **Virtual surround**: cinema sound in the headset. Voices come from the
+  screen and effects surround you, even as you turn your head. The controls
+  show what the film's sound carries (stereo, 5.1…). Turn it off in Settings,
+  Sound for plain stereo.
 - **Audio and subtitle track menus**, and volume up to 150 %.
 - **The time, and when the film ends**, on the controls (there's no clock in VR).
 - **Crisp picture and menus**: on the Quest, the video and menus are drawn
@@ -125,9 +129,8 @@ server, right from VR).
 Ideas for future versions:
 
 - **3D films**: play side-by-side and top-bottom 3D files in true stereo.
-- **Spatial audio and room acoustics**: sound that comes from the screen, with
-  a reverb that matches the room (a big theatre, a small home cinema, a cosy
-  cabin).
+- **Room acoustics**: a reverb that matches the room (a big theatre, a small
+  home cinema, a cosy cabin).
 - **Hand tracking**: point and pinch instead of using controllers, including
   gestures for teleport and recenter.
 

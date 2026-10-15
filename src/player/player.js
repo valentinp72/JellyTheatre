@@ -1,6 +1,7 @@
 import { chapters, trickplayInfo } from '../jellyfin/library.js';
 import { PlaybackReporter, resolvePlayback, TICKS_PER_SECOND } from '../jellyfin/playback.js';
 import { getSetting } from '../settings.js';
+import { SpatialAudio } from './spatial-audio.js';
 import pgsWorkerUrl from 'libpgs/dist/libpgs.worker.js?url';
 
 const PROGRESS_INTERVAL_MS = 10_000;
@@ -64,6 +65,11 @@ export class Player extends EventTarget {
 		// Volume goes through Web Audio: the Quest Browser ignores video.volume.
 		this.volume = 1;
 		this.audio = null;
+		// Channels the sound actually carries ('5.1', 'stereo'…), once heard.
+		this.soundLayout = '';
+		window.addEventListener('settingchange', ({ detail }) => {
+			if (detail.name === 'spatialAudio') this.configureAudio();
+		});
 
 		const v = this.video;
 		v.addEventListener('play', () => this.report('Unpause'));
@@ -134,6 +140,8 @@ export class Player extends EventTarget {
 	 * @param {string} [options.mediaSourceId] version to play
 	 */
 	async play(item, { startPosition, audioStreamIndex, subtitleIndex, mediaSourceId } = {}) {
+		// While the Play click still counts as a user gesture.
+		this.ensureAudioGraph();
 		this.loading = true;
 		await this.stop();
 		this.item = item;
@@ -157,6 +165,7 @@ export class Player extends EventTarget {
 				if (this.item !== item) return;
 				await this.load(source, start);
 			}
+			this.configureAudio();
 			this.selectSubtitle(subtitleIndex ?? this.defaultSubtitleIndex(source));
 			this.reporter = new PlaybackReporter(this.api, item, source);
 			this.reporter.subtitleStreamIndex = this.subtitleIndex;
@@ -403,33 +412,70 @@ export class Player extends EventTarget {
 	setVolume(volume) {
 		this.volume = Math.round(Math.max(0, Math.min(MAX_VOLUME, volume)) * 10) / 10;
 		this.video.muted = false;
-		try {
-			this.ensureAudioGraph();
+		this.ensureAudioGraph();
+		if (this.audio?.gain) {
 			this.audio.gain.gain.value = this.volume;
-		} catch (error) {
-			// No Web Audio: fall back to the element volume (ignored on some browsers).
-			console.warn('[player] Web Audio unavailable', error);
+		} else {
+			// No Web Audio (yet): the element volume (ignored on some browsers).
 			this.video.volume = Math.min(1, this.volume);
 		}
 		this.report('VolumeChange');
 	}
 
 	/**
-	 * Routes the video's audio through a gain node. Created on the first volume
-	 * change (a user gesture, so the AudioContext may start); once created, the
-	 * element's audio only plays through it, for the rest of the session.
+	 * Routes the video's audio through Web Audio: volume (the Quest Browser
+	 * ignores video.volume) and spatial audio. The AudioContext is created
+	 * during a user gesture (Play, a volume change), and the element is only
+	 * routed into it once it runs: a suspended context would silence the film.
+	 * Once routed, the element's audio only plays through it.
 	 */
 	ensureAudioGraph() {
-		if (this.audio) {
-			if (this.audio.context.state === 'suspended') this.audio.context.resume();
+		try {
+			this.audio ??= { context: new AudioContext(), gain: null, spatial: null };
+		} catch (error) {
+			console.warn('[player] Web Audio unavailable', error);
 			return;
 		}
-		const context = new AudioContext();
-		const source = context.createMediaElementSource(this.video);
-		const gain = context.createGain();
-		source.connect(gain).connect(context.destination);
-		this.audio = { context, gain };
-		context.resume();
+		const { context } = this.audio;
+		if (context.state === 'running') this.attachAudio();
+		else context.resume().then(() => this.attachAudio(), () => {});
+	}
+
+	attachAudio() {
+		const audio = this.audio;
+		if (!audio || audio.gain || audio.context.state !== 'running') return;
+		try {
+			const source = audio.context.createMediaElementSource(this.video);
+			audio.gain = new GainNode(audio.context, { gain: this.volume });
+			source.connect(audio.gain);
+			this.video.volume = 1;
+			audio.spatial = new SpatialAudio(audio.context, audio.gain, audio.context.destination);
+			this.configureAudio();
+		} catch (error) {
+			console.warn('[player] Web Audio unavailable', error);
+		}
+	}
+
+	/** Spatial audio on or off, laid out for the current track's channels. */
+	configureAudio() {
+		const streams = this.source?.mediaSource?.MediaStreams ?? [];
+		const track = streams.find((stream) => stream.Type === 'Audio' && stream.Index === this.source.audioStreamIndex);
+		this.audio?.spatial?.configure(getSetting('spatialAudio'), track?.Channels ?? 2);
+	}
+
+	/**
+	 * Keeps the virtual speakers on the screen and the listener on the head
+	 * (every frame).
+	 */
+	updateSpatialAudio(camera, screen, width) {
+		const spatial = this.audio?.spatial;
+		if (!spatial) return;
+		spatial.update(camera, screen, width);
+		const layout = spatial.heardLayout();
+		if (layout !== this.soundLayout) {
+			this.soundLayout = layout;
+			this.emit('statechange');
+		}
 	}
 
 	report(eventName) {

@@ -6,6 +6,7 @@ const KEY = 'jellytheatre.settings';
 export const SETTING_CATEGORIES = [
 	{ id: 'playback', label: 'Playback' },
 	{ id: 'subtitles', label: 'Subtitles' },
+	{ id: 'sound', label: 'Sound' },
 	{ id: 'display', label: 'Display' },
 	{ id: 'view', label: 'View' },
 	{ id: 'account', label: 'Account' },
@@ -93,6 +94,14 @@ export const SETTING_DEFINITIONS = [
 		],
 		label: 'Clock',
 		description: 'How the controls show the time of day and when the film ends.',
+	},
+	{
+		name: 'spatialAudio',
+		category: 'sound',
+		type: 'boolean',
+		default: true,
+		label: 'Virtual surround',
+		description: 'Cinema sound: voices come from the screen and effects surround you, even as you turn your head. Off: plain stereo.',
 	},
 	{
 		name: 'menuOnScreen',
