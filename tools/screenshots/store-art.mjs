@@ -2,7 +2,8 @@
 // the app's font and an in-app render (capture.mjs --store), into
 // store/horizon/assets/:
 // covers (landscape, square, portrait, hero, mini landscape) with the title,
-// the transparent logo and the square icon. Sizes from Meta's asset
+// the transparent logo, the square icon and the spatialized tile (the icon
+// in two layers: the theatre behind, the screen in front). Sizes from Meta's asset
 // guidelines; the title stays out of the top 20 % and bottom 30 %.
 //
 //   npm run store-assets
@@ -37,9 +38,9 @@ function page({ width, height, layout, background, transparent }) {
 	const short = Math.min(width, height);
 	// Title size: the row layouts fit icon + title across, the columns stack them.
 	// The logo fills its canvas; covers keep the title in the middle band.
-	let title = layout === 'row' ? height * (height / width > 0.4 ? 0.13 : 0.2) : width * 0.15;
+	let title = layout === 'row' ? height * (height / width > 0.4 ? 0.13 : 0.2) : width * 0.1;
 	if (transparent) title = height * 0.55;
-	const icon = layout === 'row' ? title * 1.45 : short * 0.3;
+	const icon = layout === 'row' ? title * 1.45 : short * 0.24;
 	const band = transparent ? 'top: 0; bottom: 0; left: 0; right: 0;' : 'left: 6%; right: 6%; top: 20%; bottom: 30%;';
 	const font = dataUrl(path.join(root, 'node_modules/@fontsource/inter/files/inter-latin-700-normal.woff2'), 'font/woff2');
 	return `<!doctype html><html><head><style>
@@ -84,6 +85,16 @@ async function main() {
 			await tab.setViewport({ width: options.width, height: options.height });
 			await tab.setContent(page({ ...options, transparent }), { waitUntil: 'load' });
 			await tab.evaluate(() => document.fonts.ready);
+			// Stacked covers: the title takes at most 60 % of the width, leaving
+			// wide margins (Meta rejected titles running close to the edges).
+			if (options.layout === 'column') {
+				await tab.evaluate(() => {
+					const title = document.querySelector('.title');
+					const max = window.innerWidth * 0.6;
+					const size = parseFloat(getComputedStyle(title).fontSize);
+					if (title.offsetWidth > max) title.style.fontSize = `${size * (max / title.offsetWidth)}px`;
+				});
+			}
 			const file = path.join(outDir, `${name}.png`);
 			await tab.screenshot({ path: file, omitBackground: transparent });
 			if (!transparent) toRgb(file);
@@ -102,6 +113,27 @@ async function main() {
 		await tab.screenshot({ path: icon });
 		toRgb(icon);
 		console.log('store/horizon/assets/icon.png');
+
+		// Spatialized tile, 512 × 512 (and optionally 180 × 180): the store lifts
+		// the transparent foreground (the screen, inside the safe margin: 18 px at
+		// 180, about 51 px at 512) off the background on hover.
+		const svg = iconSvg(false);
+		const screen = svg.match(/<path d="M96 150[^>]*\/>/)[0];
+		const layers = {
+			'spatial-background': svg.replace(screen, ''),
+			'spatial-foreground': svg.replace(/<rect width="512" height="512"[^>]*\/>/, '').replace(/<path d="M(60|452) [^>]*\/>/g, '').replace(/<g fill="#2a2333">[\s\S]*?<\/g>/, ''),
+		};
+		for (const size of [512, 180]) {
+			await tab.setViewport({ width: size, height: size });
+			for (const [name, layer] of Object.entries(layers)) {
+				const transparent = name === 'spatial-foreground';
+				await tab.setContent(`<!doctype html><html><body style="margin:0;background:transparent">${layer.replace('<svg ', `<svg width="${size}" height="${size}" `)}</body></html>`);
+				const file = path.join(outDir, `${name}-${size}.png`);
+				await tab.screenshot({ path: file, omitBackground: transparent });
+				if (!transparent) toRgb(file);
+				console.log(`store/horizon/assets/${name}-${size}.png`);
+			}
+		}
 	} finally {
 		await browser.close();
 	}

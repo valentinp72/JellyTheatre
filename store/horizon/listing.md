@@ -112,6 +112,8 @@ launch of the app.
 | Mini landscape | 1080 × 360 | `mini-landscape.png` |
 | Logo (transparent) | 2400 × 520 | `logo.png` |
 | Icon | 512 × 512 | `icon.png` |
+| Spatialized tile, background | 512 × 512 (and 180 × 180, optional) | `spatial-background-512.png`, `spatial-background-180.png` |
+| Spatialized tile, foreground (transparent) | 512 × 512 (and 180 × 180, optional) | `spatial-foreground-512.png`, `spatial-foreground-180.png` |
 | Screenshots (5) | 2560 × 1440 | `screenshot-1…5-*.png` |
 
 The `background-*.png` files are only the source renders of the covers.

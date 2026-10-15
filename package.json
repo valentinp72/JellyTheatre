@@ -1,6 +1,6 @@
 {
   "name": "jellytheatre",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "private": true,
   "description": "WebXR movie theatre client for Jellyfin",
   "type": "module",

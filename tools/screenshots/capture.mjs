@@ -38,6 +38,10 @@ const STORE_SHOTS = ['library-movies', 'playing', 'series', 'environment-station
 const STORE_BACKGROUNDS = ['environment-theater', 'environment-home'];
 // Environments with a picker card captured here ("My room" is your real room).
 const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'void'];
+// The open-movie clip's frame (seconds) shown on each environment's screen:
+// paused on calm shots rather than wherever playback happens to be (the
+// clip's last seconds, a brain on a plate, got a store screenshot flagged).
+const ENVIRONMENT_FRAMES = { theater: 8, home: 12, station: 30, cabin: 1, void: 6 };
 
 /** Fallback: a colorful test clip (generated fractal zoom) and invented subtitles. */
 function prepareMedia() {
@@ -216,6 +220,13 @@ async function main() {
 		for (const key of ENVIRONMENTS) {
 			await chooseEnvironment(key);
 			await show('settings-panel', false);
+			if (open) {
+				await page.evaluate((time) => {
+					const video = document.querySelector('video');
+					video.pause();
+					video.currentTime = time;
+				}, ENVIRONMENT_FRAMES[key]);
+			}
 			await wait(1500);
 			await page.evaluate(() => {
 				document.querySelector('#player-controls').components['player-controls'].setVisible(false);
