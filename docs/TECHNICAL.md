@@ -163,3 +163,5 @@ Next features are in the [README roadmap](../README.md#roadmap).
 - **v0.2.7**: `https://` prefilled and plain-HTTP servers explained; keyboard
   click sound and press colour; 12/24-hour clock setting; a gentler screen
   light in small rooms and a dimmer space station.
+- **v0.2.8**: the library fills the big screen edge to edge (the idle screen
+  returns to 16:9 after a film).

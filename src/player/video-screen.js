@@ -152,6 +152,8 @@ AFRAME.registerComponent('video-screen', {
 		const showing = this.player?.isActive && this.video.readyState >= 2;
 		if (!showing) {
 			this.destroyLayer();
+			// Idle, the screen goes back to 16:9 (the library fills it).
+			if (!this.player?.isActive && Math.abs(this.size.width / this.size.height - 16 / 9) > 0.01) this.fit(16 / 9);
 			this.mesh.material = this.idleMaterial;
 			return;
 		}

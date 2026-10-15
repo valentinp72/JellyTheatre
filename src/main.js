@@ -80,8 +80,13 @@ const environment = () => environmentEl.components[environments[currentEnvironme
 function placeLibrary() {
 	const object = libraryEl.object3D;
 	if (getSetting('menuOnScreen')) {
+		// Fill the idle (16:9) screen edge to edge, overlapping it slightly so
+		// it doesn't peek out at an angle.
 		const { maxWidth, maxHeight } = environments[currentEnvironment].layout.screen;
-		const scale = Math.min(maxWidth / 2.3, maxHeight / 1.42) * 0.96;
+		const width = Math.min(maxWidth, maxHeight * 16 / 9) * 1.01;
+		const height = width * 9 / 16;
+		const scale = Math.min(width / 2.3, height / 1.42);
+		libraryEl.setAttribute('library-panel', { fillWidth: width / scale, fillHeight: height / scale });
 		// Follow the screen's actual pose (it can be moved in passthrough).
 		screenEl.object3D.updateMatrixWorld();
 		const world = new THREE.Matrix4()
@@ -91,6 +96,7 @@ function placeLibrary() {
 		world.premultiply(new THREE.Matrix4().copy(rigEl.object3D.matrixWorld).invert());
 		world.decompose(object.position, object.quaternion, object.scale);
 	} else {
+		libraryEl.setAttribute('library-panel', { fillWidth: 0, fillHeight: 0 });
 		// 2 m away, or closer in a small room (scaled to look the same).
 		const distance = environments[currentEnvironment].layout.menuDistance ?? 2;
 		object.position.set(0, 1.28, -distance);

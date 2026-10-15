@@ -78,6 +78,11 @@ AFRAME.registerComponent('library-panel', {
 	schema: {
 		// The on-screen keyboard (kept at lap height, outside the panel).
 		keyboard: { type: 'selector', default: '[ui-keyboard]' },
+		// On the big screen: the screen's size in panel units, which the
+		// background fills edge to edge (square corners, opaque). 0: a floating
+		// panel with rounded corners.
+		fillWidth: { type: 'number', default: 0 },
+		fillHeight: { type: 'number', default: 0 },
 	},
 
 	init() {
@@ -97,7 +102,8 @@ AFRAME.registerComponent('library-panel', {
 		this.searchTimer = null;
 		this.signInActive = false;
 
-		this.el.append(entity({ 'ui-rect': `width: ${WIDTH}; height: ${HEIGHT}; radius: 0.04; opacity: 0.95` }));
+		this.background = entity({ 'ui-rect': `width: ${WIDTH}; height: ${HEIGHT}; radius: 0.04; opacity: 0.95` });
+		this.el.append(this.background);
 		this.heading = entity({ position: `${LEFT} ${TOP - 0.065} 0.002`, 'ui-text': 'value: Now showing; fontSize: 0.05; weight: bold; anchorX: left' });
 		this.refreshButton = this.button({ label: 'Refresh', width: 0.18 }, RIGHT - 0.09, TOP - 0.065, () => this.el.emit('refresh-request'));
 		this.settingsButton = this.button({ label: 'Settings', width: 0.2 }, RIGHT - 0.18 - 0.02 - 0.1, TOP - 0.065, () => this.el.emit('settings-request'));
@@ -122,6 +128,20 @@ AFRAME.registerComponent('library-panel', {
 		this.onKeyDown = this.onKeyDown.bind(this);
 		window.addEventListener('keydown', this.onKeyDown);
 		this.render();
+	},
+
+	update() {
+		const { fillWidth, fillHeight } = this.data;
+		const fill = fillWidth > 0 && fillHeight > 0;
+		const frame = fill
+			? { width: Math.max(fillWidth, WIDTH), height: Math.max(fillHeight, HEIGHT), radius: 0 }
+			: { width: WIDTH, height: HEIGHT, radius: 0.04 };
+		this.background.setAttribute('ui-rect', { ...frame, opacity: fill ? 1 : 0.95 });
+		// The crisp compositor layer (and its hole) take the same outline.
+		const layer = this.el.getAttribute('panel-layer');
+		if (layer && (layer.width !== frame.width || layer.height !== frame.height || layer.radius !== frame.radius)) {
+			this.el.setAttribute('panel-layer', frame);
+		}
 	},
 
 	remove() {
