@@ -42,7 +42,10 @@ export function cinemaSeat({ width = 0.62 } = {}) {
 
 /** Places a viewer can sit (sofas, recliners…): the teleport targets. */
 export class SeatSpots {
-	/** @param {THREE.Vector3[]} seats floor positions where the viewer's rig goes */
+	/**
+	 * @param {THREE.Vector3[]} seats floor positions where the viewer's rig goes
+	 * (lying down, e.g. on a bed, a seat also has a `head`: where the eyes go)
+	 */
 	constructor(seats = []) {
 		this.seats = seats;
 	}

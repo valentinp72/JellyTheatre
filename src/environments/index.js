@@ -2,6 +2,7 @@
 // with the kit's defineEnvironment) plus a layout telling the app where the
 // screen and the viewer's seat are, and a description for the picker.
 
+import { bedsLayout } from './beds/beds.js';
 import { cabinLayout } from './cabin/cabin.js';
 import { homeLayout } from './home/home.js';
 import { jungleLayout } from './jungle/jungle.js';
@@ -46,6 +47,15 @@ export const environments = {
 		// Picker card: public/environments/theater.jpg (npm run screenshots).
 		thumbnail: true,
 		layout: theaterLayout,
+	},
+	beds: {
+		name: 'Bed cinema',
+		description: 'A smaller theatre with beds, the screen leaning over you.',
+		tags: ['indoor', 'lying', 'seats'],
+		component: 'beds-environment',
+		// Picker card: public/environments/beds.jpg (npm run screenshots).
+		thumbnail: true,
+		layout: bedsLayout,
 	},
 	home: {
 		name: 'Home cinema',

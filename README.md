@@ -4,7 +4,7 @@
 
 JellyTheatre lets you watch your own films and shows on a Meta Quest 3 (or
 another WebXR headset). You pick a place to watch from: a movie theatre, a
-cosy home cinema, a space station, a cabin by a lake, a hammock in the jungle,
+cinema with beds, a cosy home cinema, a space station, a cabin by a lake, a hammock in the jungle,
 or your own room. It
 runs in the headset's browser and installs like an app. There is nothing to
 sideload and nothing to add to your server.
@@ -17,12 +17,14 @@ sideload and nothing to add to your server.
 
 | | |
 |---|---|
-| ![Movie theatre](docs/screenshots/environment-theater.png) | ![Home cinema](docs/screenshots/environment-home.png) |
-| **Movie theatre**: rows of red seats, curtains, a projection booth and a giant screen. | **Home cinema**: recliners, a sofa, bookshelves and a starry ceiling. |
-| ![Space station](docs/screenshots/environment-station.png) | ![Lakeside cabin](docs/screenshots/environment-cabin.png) |
-| **Space station**: float in a Cupola like the ISS's, windows all around onto the planet, the moon and the stars. | **Lakeside cabin**: a crackling fire, rain on the windows, a moonlit lake. |
-| ![Jungle hammock](docs/screenshots/environment-jungle.png) | ![Dark void](docs/screenshots/environment-void.png) |
-| **Jungle hammock**: made for watching in bed. Lie back in a hammock under the rainforest canopy, the screen stretched between two trees above you, fireflies all around. | **Dark void**: only the screen, in a quiet dark space. |
+| ![Movie theatre](docs/screenshots/environment-theater.png) | ![Bed cinema](docs/screenshots/environment-beds.png) |
+| **Movie theatre**: rows of red seats, curtains, a projection booth and a giant screen. | **Bed cinema**: made for watching in bed. A smaller theatre with six beds, popcorn on the side tables, and the screen leaning out high above you, facing your pillow. |
+| ![Home cinema](docs/screenshots/environment-home.png) | ![Space station](docs/screenshots/environment-station.png) |
+| **Home cinema**: recliners, a sofa, bookshelves and a starry ceiling. | **Space station**: float in a Cupola like the ISS's, windows all around onto the planet, the moon and the stars. |
+| ![Lakeside cabin](docs/screenshots/environment-cabin.png) | ![Jungle hammock](docs/screenshots/environment-jungle.png) |
+| **Lakeside cabin**: a crackling fire, rain on the windows, a moonlit lake. | **Jungle hammock**: also made for watching in bed. Lie back in a hammock under the rainforest canopy, the screen stretched between two trees above you, fireflies all around. |
+| ![Dark void](docs/screenshots/environment-void.png) | |
+| **Dark void**: only the screen, in a quiet dark space. | |
 
 You can also watch in **My room**, which uses passthrough to put the screen in your real room, where you can move
 it. Room lighting follows the colours of the picture, so the room glows blue

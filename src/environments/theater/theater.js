@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { StaticBuilder } from '../kit/builder.js';
 import { defineEnvironment } from '../kit/environment.js';
 import { box, foldedCurtain, tiledBox, tiledPlane } from '../kit/geometry.js';
-import { EnvironmentLighting, glowMaterial } from '../kit/lighting.js';
+import { EnvironmentLighting, glowMaterial, projectorBeam } from '../kit/lighting.js';
 import { cinemaSeat, SeatRows } from '../kit/seating.js';
 import * as textures from '../kit/textures.js';
 
@@ -125,7 +125,7 @@ defineEnvironment('theater', {
 		lighting.addFixture(m.booth, { min: 0.6, followBrightness: false });
 		env.lighting = lighting;
 
-		env.group.add(projectorBeam(lighting));
+		env.group.add(projectorBeam(lighting, new THREE.Vector3(0, 7.8, ROOM.back - 0.1), new THREE.Vector3(SCREEN.x, SCREEN.y, SCREEN.z), SCREEN));
 	},
 });
 
@@ -256,54 +256,4 @@ function buildBackWall(b, m) {
 			b.add(box(bw, bh, 0.08), m.trim, { position: [x + bx, y + by, ROOM.back - 0.04] });
 		}
 	}
-}
-
-/**
- * The projector beam, from the booth to the screen: faint, takes the picture's
- * color during the film, and fades out well before the screen (so it never
- * veils the picture).
- */
-function projectorBeam(lighting) {
-	const from = new THREE.Vector3(0, 7.8, ROOM.back - 0.1);
-	const to = new THREE.Vector3(SCREEN.x, SCREEN.y, SCREEN.z);
-	const length = from.distanceTo(to);
-	// Open cone along y: v = 1 at the narrow (booth) end, 0 at the screen end.
-	const geometry = new THREE.CylinderGeometry(0.15, 1, length, 24, 1, true);
-	const material = new THREE.ShaderMaterial({
-		uniforms: { color: { value: new THREE.Color() }, intensity: { value: 0 } },
-		vertexShader: `
-			varying float vAlong;
-			void main() {
-				vAlong = uv.y;
-				gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-			}`,
-		fragmentShader: `
-			uniform vec3 color;
-			uniform float intensity;
-			varying float vAlong;
-			void main() {
-				// A soft glow coming out of the booth, fading out over the back rows
-				// (not a veil over the audience, never over the picture).
-				float fade = smoothstep(0.72, 0.93, vAlong) * (1.0 - smoothstep(0.97, 1.0, vAlong));
-				gl_FragColor = vec4(color * intensity * fade, 1.0);
-			}`,
-		transparent: true,
-		depthWrite: false,
-		blending: THREE.AdditiveBlending,
-		side: THREE.DoubleSide,
-	});
-	const beam = new THREE.Mesh(geometry, material);
-	// The wide end takes the picture's shape.
-	beam.scale.set(SCREEN.maxWidth / 2, 1, SCREEN.maxHeight / 2);
-	beam.position.copy(from).add(to).multiplyScalar(0.5);
-	// Cone axis (+y, booth end) points from the screen to the booth.
-	beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), from.clone().sub(to).normalize());
-	beam.visible = false;
-
-	lighting.onScreen(({ color, brightness, playing }) => {
-		beam.visible = playing && brightness > 0;
-		material.uniforms.color.value.copy(color);
-		material.uniforms.intensity.value = 0.03 + 0.08 * brightness;
-	});
-	return beam;
 }

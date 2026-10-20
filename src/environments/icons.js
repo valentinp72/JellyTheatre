@@ -36,6 +36,52 @@ const painters = {
 			}
 		}
 	},
+	beds(ctx) {
+		// The theatre's curtains, a screen leaning out above, rows of beds.
+		ctx.fillStyle = '#17121a';
+		ctx.fillRect(0, 0, W, H);
+		ctx.fillStyle = '#2a242c';
+		ctx.beginPath();
+		ctx.moveTo(0, 0);
+		ctx.lineTo(W, 0);
+		ctx.lineTo(W - 30, 96);
+		ctx.lineTo(30, 96);
+		ctx.fill();
+		ctx.fillStyle = '#8a1c2b';
+		for (let i = 0; i < 36; i++) ctx.fillRect(i * 9, 96, 5, 30);
+		ctx.fillStyle = '#05060a';
+		ctx.beginPath();
+		ctx.moveTo(62, 8);
+		ctx.lineTo(258, 8);
+		ctx.lineTo(240, 84);
+		ctx.lineTo(80, 84);
+		ctx.fill();
+		const gradient = ctx.createLinearGradient(70, 12, 250, 80);
+		gradient.addColorStop(0, '#3a4a6b');
+		gradient.addColorStop(1, '#151a28');
+		ctx.fillStyle = gradient;
+		ctx.beginPath();
+		ctx.moveTo(68, 12);
+		ctx.lineTo(252, 12);
+		ctx.lineTo(236, 80);
+		ctx.lineTo(84, 80);
+		ctx.fill();
+		// Beds: headboards and mattresses, with red throws at their feet.
+		for (const [y, w, gap] of [[128, 70, 26], [150, 84, 22]]) {
+			const total = 3 * w + 2 * gap;
+			for (let i = 0; i < 3; i++) {
+				const x = (W - total) / 2 + i * (w + gap);
+				ctx.fillStyle = '#5a2e36';
+				ctx.beginPath();
+				ctx.roundRect(x, y, w, 26, 5);
+				ctx.fill();
+				ctx.fillStyle = '#cfc8bb';
+				ctx.fillRect(x + 4, y + 3, w - 8, 10);
+				ctx.fillStyle = '#8a1c2b';
+				ctx.fillRect(x + 4, y + 3, w - 8, 4);
+			}
+		}
+	},
 	home(ctx) {
 		ctx.fillStyle = '#1a2136';
 		ctx.fillRect(0, 0, W, H);

@@ -16,7 +16,7 @@ import { startMockJellyfin } from './screenshots/mock-jellyfin.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MOCK_PORT = 8096;
-const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'jungle', 'void'];
+const ENVIRONMENTS = ['theater', 'beds', 'home', 'station', 'cabin', 'jungle', 'void'];
 
 /** A 12-second clip and its subtitles; false without ffmpeg. */
 function tinyClip(dir) {
@@ -121,20 +121,30 @@ async function main() {
 				panel.picker.children[index].emit('click');
 			}, key);
 			await expect(`environment "${key}" builds`, (key) => Boolean(document.querySelector('#environment').components[`${key}-environment`]), key);
-			if (key === 'jungle') {
-				// Lying down: the eyes on the hammock, looking straight at the screen
-				// above, the picture upright.
-				await expect('lying down: the screen fills the view, upright', () => {
+			if (key === 'jungle' || key === 'beds') {
+				// Lying down: the eyes on the pillow, looking straight at the screen
+				// above, the picture upright; in the bed cinema, from the last bed too.
+				await expect(`lying down in "${key}": the screen fills the view, upright`, (key) => {
 					const { Vector3 } = AFRAME.THREE;
-					document.querySelector('a-scene').components['view-controls'].backToSeat();
-					const camera = document.querySelector('#camera').object3D.matrixWorld;
-					const screen = document.querySelector('#screen').object3D.matrixWorld;
-					const head = new Vector3().setFromMatrixPosition(camera);
-					const toScreen = new Vector3().setFromMatrixPosition(screen).sub(head).normalize();
-					const forward = new Vector3(0, 0, -1).transformDirection(camera);
-					const up = new Vector3(0, 1, 0).transformDirection(camera);
-					return forward.dot(toScreen) > 0.999 && up.dot(new Vector3(0, 1, 0).transformDirection(screen)) > 0.999;
-				});
+					const controls = document.querySelector('a-scene').components['view-controls'];
+					const seats = controls.seats();
+					const lookingAtScreen = (seat) => {
+						controls.backToSeat(seat);
+						const camera = document.querySelector('#camera').object3D.matrixWorld;
+						const screen = document.querySelector('#screen').object3D.matrixWorld;
+						const head = new Vector3().setFromMatrixPosition(camera);
+						const toScreen = new Vector3().setFromMatrixPosition(screen).sub(head).normalize();
+						const forward = new Vector3(0, 0, -1).transformDirection(camera);
+						const up = new Vector3(0, 1, 0).transformDirection(camera);
+						const onPillow = !seat?.head || head.distanceTo(seat.head) < 1e-3;
+						// Upright: the head's up is the picture's, seen across the line of sight.
+						const screenUp = new Vector3(0, 1, 0).transformDirection(screen);
+						const upright = screenUp.addScaledVector(toScreen, -screenUp.dot(toScreen)).normalize();
+						return onPillow && forward.dot(toScreen) > 0.999 && up.dot(upright) > 0.999;
+					};
+					// (Back on the default seat last.)
+					return (key === 'beds' ? [seats.at(-1), undefined] : [undefined]).every(lookingAtScreen);
+				}, key);
 			}
 		}
 		await clickButton('#settings-panel', 'Close');

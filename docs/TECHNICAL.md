@@ -215,3 +215,11 @@ Next features are in the [README roadmap](../README.md#roadmap).
   Environment button in the library's header and a landscape icon on the
   controls (choosing closes the panel). Header buttons get icons beside their
   label (`ui-button` `iconPosition: left`).
+- **v0.5.0, bed cinema**: a smaller sister of the movie theatre for watching
+  in bed: six beds in two rows, the screen leaning out of a sloping soffit
+  high above the front, facing the pillows (front row 55° up, back row,
+  sitting up more, 36°), so the room stays level and matches the body (a
+  theatre seat with the room rotated to the eyes was rejected: it can make
+  you sick). Lying seats: each bed's seat spot carries its own `head`, so
+  teleporting lands with the eyes on that pillow. `projectorBeam` moved to
+  the kit (shared with the theatre).

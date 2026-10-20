@@ -26,6 +26,7 @@ export const SETTING_DEFINITIONS = [
 		picker: 'environment',
 		options: [
 			{ value: 'theater', label: 'Movie theatre' },
+			{ value: 'beds', label: 'Bed cinema' },
 			{ value: 'home', label: 'Home cinema' },
 			{ value: 'station', label: 'Space station' },
 			{ value: 'cabin', label: 'Lakeside cabin' },
@@ -34,7 +35,7 @@ export const SETTING_DEFINITIONS = [
 			{ value: 'passthrough', label: 'My room' },
 		],
 		label: 'Environment',
-		description: 'Where you watch: a theatre, a home cinema, a space station, a cabin, a hammock in the jungle… or your own room.',
+		description: 'Where you watch: a theatre (with seats or beds), a home cinema, a space station, a cabin, a hammock in the jungle… or your own room.',
 	},
 	{
 		name: 'roomBrightness',

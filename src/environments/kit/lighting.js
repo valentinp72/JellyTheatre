@@ -184,3 +184,53 @@ export function glowMaterial(texture, color = '#ffcf8a', opacity = 0.6) {
 		depthWrite: false,
 	});
 }
+
+/**
+ * The projector beam, from the booth (`from`) to the screen (`to`): faint,
+ * takes the picture's color during the film, and fades out well before the
+ * screen (so it never veils the picture).
+ * @param {EnvironmentLighting} lighting
+ * @param {{ maxWidth: number, maxHeight: number }} screen size of the picture
+ */
+export function projectorBeam(lighting, from, to, { maxWidth, maxHeight }) {
+	const length = from.distanceTo(to);
+	// Open cone along y: v = 1 at the narrow (booth) end, 0 at the screen end.
+	const geometry = new THREE.CylinderGeometry(0.15, 1, length, 24, 1, true);
+	const material = new THREE.ShaderMaterial({
+		uniforms: { color: { value: new THREE.Color() }, intensity: { value: 0 } },
+		vertexShader: `
+			varying float vAlong;
+			void main() {
+				vAlong = uv.y;
+				gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+			}`,
+		fragmentShader: `
+			uniform vec3 color;
+			uniform float intensity;
+			varying float vAlong;
+			void main() {
+				// A soft glow coming out of the booth, fading out over the back rows
+				// (not a veil over the audience, never over the picture).
+				float fade = smoothstep(0.72, 0.93, vAlong) * (1.0 - smoothstep(0.97, 1.0, vAlong));
+				gl_FragColor = vec4(color * intensity * fade, 1.0);
+			}`,
+		transparent: true,
+		depthWrite: false,
+		blending: THREE.AdditiveBlending,
+		side: THREE.DoubleSide,
+	});
+	const beam = new THREE.Mesh(geometry, material);
+	// The wide end takes the picture's shape.
+	beam.scale.set(maxWidth / 2, 1, maxHeight / 2);
+	beam.position.copy(from).add(to).multiplyScalar(0.5);
+	// Cone axis (+y, booth end) points from the screen to the booth.
+	beam.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), from.clone().sub(to).normalize());
+	beam.visible = false;
+
+	lighting.onScreen(({ color, brightness, playing }) => {
+		beam.visible = playing && brightness > 0;
+		material.uniforms.color.value.copy(color);
+		material.uniforms.intensity.value = 0.03 + 0.08 * brightness;
+	});
+	return beam;
+}

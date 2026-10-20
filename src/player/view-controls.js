@@ -9,8 +9,9 @@
 //   level; reclined or lying down (head pointing well above the horizon), the
 //   view is also tilted so the screen is in front of your eyes, upright, and
 //   the menus (the `view` entity) come in front of your eyes too.
-// - Environments where the viewer lies down (a hammock) are always recentered
-//   that way in VR, and put the viewer's head at a fixed spot (`head`).
+// - Environments where the viewer lies down (a hammock, beds) are always
+//   recentered that way in VR, and put the viewer's head at a fixed spot
+//   (`head`; with several beds, each seat carries its own `head`).
 // - Left stick click: back to your seat.
 //
 // Everything moves the camera rig; emits `rig-moved` on the scene afterwards.
@@ -325,16 +326,19 @@ AFRAME.registerComponent('view-controls', {
 		view.position.set(0, -MENU_EYE_HEIGHT, 0).applyQuaternion(view.quaternion).add(eyes);
 	},
 
-	/** Back on the seat (default: the environment's), level, facing the screen. */
+	/**
+	 * Back on the seat (default: the environment's), level, facing the screen.
+	 * @param {{ x: number, y: number, z: number, head?: THREE.Vector3 }} [seat]
+	 */
 	backToSeat(seat = this.data.seat) {
 		const rig = this.data.rig.object3D;
 		rig.quaternion.identity();
 		if (this.data.lying) {
-			// Lying down: the eyes go exactly where the head rests (recentering
-			// turns around the head, which stays there).
+			// Lying down: the eyes go exactly where the head rests on this bed
+			// (recentering turns around the head, which stays there).
 			rig.position.set(seat.x, seat.y, seat.z);
 			this.emitMoved();
-			rig.position.add(new THREE.Vector3().copy(this.data.head).sub(this.headPosition()));
+			rig.position.add(new THREE.Vector3().copy(seat.head ?? this.data.head).sub(this.headPosition()));
 			this.emitMoved();
 			this.recenter();
 			return;

@@ -100,9 +100,12 @@ ships.
   `#view` in the rig, laid out for a seated user looking ahead. Recentering
   reclined turns `#view` with the gaze, so they come in front of the eyes:
   place any new menu there, and compute rig-relative poses from its parent.
-- Environments for lying down (the jungle hammock) set `head` (where the eyes
-  go) and `screen.tilt` in their layout; keep the line of sight from `head`
-  to the screen clear (the jungle's `blocksScreen` / `plantHidesScreen`).
+- Environments for lying down (the jungle hammock, the bed cinema) set `head`
+  (where the eyes go) and `screen.tilt` in their layout: the screen leans back
+  above the viewer, so the room stays level and matches the body (never
+  rotate the room to the eyes instead: it makes users sick). With several
+  beds, each seat spot carries its own `head`. Keep the line of sight from
+  `head` to the screen clear (the jungle's `blocksScreen` / `plantHidesScreen`).
 - Icons are geometry (src/ui/icons.js), not font glyphs: the bundled Inter
   subset lacks most symbols. Icon buttons should set a `tooltip`.
 - The playback mode badge (Direct play / Remux / Transcoding) must stay
@@ -126,7 +129,7 @@ ships.
   pines), `nature` (trunks, buttress roots, ropes and vines, `PlantCards`
   instanced leaf cards, treeline, `Fireflies`), `Fire` (flames + flickering light; push into `env.effects`),
   `EnvironmentLighting` (house lights, fixtures and glows that dim, screen
-  light, `onScreen` effects).
+  light, `onScreen` effects, `projectorBeam`).
 - A new environment also needs an entry in `src/environments/index.js` (name,
   description, `tags` from `ENVIRONMENT_TAGS`: indoor / outdoor / passthrough,
   each posture it offers, several seats; shown as chips with geometry icons
