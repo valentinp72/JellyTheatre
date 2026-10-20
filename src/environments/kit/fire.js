@@ -12,9 +12,11 @@ export class Fire {
 	 * @param {THREE.Vector3} options.position base of the fire
 	 * @param {number} [options.width]
 	 * @param {import('./lighting.js').EnvironmentLighting} [options.lighting] to dim a little during the film
+	 * @param {number} [options.intensity] of its light
 	 */
-	constructor(parent, { position, width = 0.8, lighting = null }) {
+	constructor(parent, { position, width = 0.8, lighting = null, intensity = 2.6 }) {
 		this.lighting = lighting;
+		this.intensity = intensity;
 		this.group = new THREE.Group();
 		this.group.position.copy(position);
 		this.time = 0;
@@ -76,6 +78,6 @@ export class Fire {
 		// Flickering light: a few incommensurate waves (no visible pattern).
 		const flicker = 0.8 + 0.12 * Math.sin(t * 7.3) + 0.08 * Math.sin(t * 13.1 + 1) + 0.06 * Math.sin(t * 23.7 + 2);
 		const filmFactor = this.lighting ? 0.7 + 0.3 * this.lighting.level : 1;
-		this.light.intensity = 2.6 * flicker * filmFactor;
+		this.light.intensity = this.intensity * flicker * filmFactor;
 	}
 }

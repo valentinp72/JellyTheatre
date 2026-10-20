@@ -4,7 +4,8 @@
 
 JellyTheatre lets you watch your own films and shows on a Meta Quest 3 (or
 another WebXR headset). You pick a place to watch from: a movie theatre, a
-cosy home cinema, a space station, a cabin by a lake, or your own room. It
+cosy home cinema, a space station, a cabin by a lake, a hammock in the jungle,
+or your own room. It
 runs in the headset's browser and installs like an app. There is nothing to
 sideload and nothing to add to your server.
 
@@ -20,9 +21,10 @@ sideload and nothing to add to your server.
 | **Movie theatre**: stadium seating, curtains, a projection booth and a giant screen. | **Home cinema**: recliners, a sofa, bookshelves and a starry ceiling. |
 | ![Space station](docs/screenshots/environment-station.png) | ![Lakeside cabin](docs/screenshots/environment-cabin.png) |
 | **Space station**: float in a Cupola like the ISS's, windows all around onto the planet, the moon and the stars. | **Lakeside cabin**: a crackling fire, rain on the windows, a moonlit lake. |
+| ![Jungle hammock](docs/screenshots/environment-jungle.png) | ![Dark void](docs/screenshots/environment-void.png) |
+| **Jungle hammock**: made for watching in bed. Lie back in a hammock under the rainforest canopy, the screen stretched between two trees above you, fireflies all around. | **Dark void**: only the screen, in a quiet dark space. |
 
-You can also watch in a **Dark void** (only the screen), or in **My room**,
-which uses passthrough to put the screen in your real room, where you can move
+You can also watch in **My room**, which uses passthrough to put the screen in your real room, where you can move
 it. Room lighting follows the colours of the picture, so the room glows blue
 during a night scene and warm during a sunset. You can turn this off or change
 the room's brightness.
@@ -86,8 +88,8 @@ the server's decision before you press Play.
 
 - **Change seats** by pointing at one and teleporting there (no walking, no
   motion sickness), plus **snap turn**.
-- **Recenter** with the Quest's own button. If you're reclined, the screen
-  stays in front of you.
+- **Recenter** with the Quest's own button. If you're reclined or lying down,
+  the screen, upright, and the menus come in front of your eyes.
 - **Adjustable eye height**, if your seat feels too low or too high, or if you
   watch lying down.
 - The **library, controls and settings panels can be grabbed and moved**
@@ -129,8 +131,6 @@ server, right from VR).
 Ideas for future versions:
 
 - **3D films**: play side-by-side and top-bottom 3D files in true stereo.
-- **Room acoustics**: a reverb that matches the room (a big theatre, a small
-  home cinema, a cosy cabin).
 - **Hand tracking**: point and pinch instead of using controllers, including
   gestures for teleport and recenter.
 

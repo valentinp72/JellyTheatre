@@ -4,6 +4,7 @@
 
 import { cabinLayout } from './cabin/cabin.js';
 import { homeLayout } from './home/home.js';
+import { jungleLayout } from './jungle/jungle.js';
 import { passthroughLayout } from './passthrough/passthrough.js';
 import { stationLayout } from './station/station.js';
 import { theaterLayout } from './theater/theater.js';
@@ -11,8 +12,10 @@ import { voidLayout } from './void/void.js';
 
 /**
  * @typedef {object} EnvironmentLayout
- * @property {{ position: {x: number, y: number, z: number}, maxWidth: number, maxHeight: number }} screen
+ * @property {{ position: {x: number, y: number, z: number}, maxWidth: number, maxHeight: number, tilt?: number }} screen
+ * tilt: degrees the screen leans back (above a lying viewer)
  * @property {{ x: number, y: number, z: number }} seat Rig (floor) position of the viewer.
+ * @property {{ x: number, y: number, z: number }} [head] The viewer lies down, eyes here.
  * @property {boolean} [screenLight] Lit by the picture.
  * @property {boolean} [ar] Needs an immersive-ar session (passthrough).
  * @property {number} [menuDistance] Library distance when not on the screen (default 2 m).
@@ -51,6 +54,14 @@ export const environments = {
 		// Picker card: public/environments/cabin.jpg (npm run screenshots).
 		thumbnail: true,
 		layout: cabinLayout,
+	},
+	jungle: {
+		name: 'Jungle hammock',
+		description: 'Lie back in a hammock in the rainforest at night, the screen stretched between two trees above you.',
+		component: 'jungle-environment',
+		// Picker card: public/environments/jungle.jpg (npm run screenshots).
+		thumbnail: true,
+		layout: jungleLayout,
 	},
 	void: {
 		name: 'Dark void',

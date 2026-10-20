@@ -16,7 +16,7 @@ import { startMockJellyfin } from './screenshots/mock-jellyfin.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const MOCK_PORT = 8096;
-const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'void'];
+const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'jungle', 'void'];
 
 /** A 12-second clip and its subtitles; false without ffmpeg. */
 function tinyClip(dir) {
@@ -110,6 +110,21 @@ async function main() {
 				panel.picker.children[index].emit('click');
 			}, key);
 			await expect(`environment "${key}" builds`, (key) => Boolean(document.querySelector('#environment').components[`${key}-environment`]), key);
+			if (key === 'jungle') {
+				// Lying down: the eyes on the hammock, looking straight at the screen
+				// above, the picture upright.
+				await expect('lying down: the screen fills the view, upright', () => {
+					const { Vector3 } = AFRAME.THREE;
+					document.querySelector('a-scene').components['view-controls'].backToSeat();
+					const camera = document.querySelector('#camera').object3D.matrixWorld;
+					const screen = document.querySelector('#screen').object3D.matrixWorld;
+					const head = new Vector3().setFromMatrixPosition(camera);
+					const toScreen = new Vector3().setFromMatrixPosition(screen).sub(head).normalize();
+					const forward = new Vector3(0, 0, -1).transformDirection(camera);
+					const up = new Vector3(0, 1, 0).transformDirection(camera);
+					return forward.dot(toScreen) > 0.999 && up.dot(new Vector3(0, 1, 0).transformDirection(screen)) > 0.999;
+				});
+			}
 		}
 		await clickButton('#settings-panel', 'Close');
 

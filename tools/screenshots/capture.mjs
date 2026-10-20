@@ -37,11 +37,13 @@ const STORE_SHOTS = ['library-movies', 'playing', 'series', 'environment-station
 // Clean renders the covers are drawn on (not listed as screenshots).
 const STORE_BACKGROUNDS = ['environment-theater', 'environment-home'];
 // Environments with a picker card captured here ("My room" is your real room).
-const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'void'];
+const ENVIRONMENTS = ['theater', 'home', 'station', 'cabin', 'jungle', 'void'];
 // The open-movie clip's frame (seconds) shown on each environment's screen:
 // paused on calm shots rather than wherever playback happens to be (the
 // clip's last seconds, a brain on a plate, got a store screenshot flagged).
-const ENVIRONMENT_FRAMES = { theater: 8, home: 12, station: 30, cabin: 1, void: 6 };
+const ENVIRONMENT_FRAMES = { theater: 8, home: 12, station: 30, cabin: 1, jungle: 20, void: 6 };
+// Where the camera looks (pitch, radians): up at the screen above a hammock.
+const ENVIRONMENT_PITCH = { jungle: 0.78 };
 
 /** Fallback: a colorful test clip (generated fractal zoom) and invented subtitles. */
 function prepareMedia() {
@@ -234,7 +236,7 @@ async function main() {
 				const component = Object.values(environment.components).find((c) => c.setHouseLights);
 				component.setHouseLights(true);
 			});
-			await look(0, 0.02);
+			await look(0, ENVIRONMENT_PITCH[key] ?? 0.02);
 			await wait(2800);
 			await shot(`environment-${key}`);
 			if (STORE) continue;

@@ -158,12 +158,13 @@ AFRAME.registerComponent('settings-panel', {
 
 	buildPicker(setting) {
 		this.picker.replaceChildren();
-		const cols = 3;
+		// Two rows: three cards each, or more (narrower, a line more of text).
+		const cols = Math.max(3, Math.ceil(setting.options.length / 2));
 		const gap = 0.04;
 		const cardW = (RIGHT - LEFT - (cols - 1) * gap) / cols;
 		const imageW = cardW - 0.03;
 		const imageH = imageW * (9 / 16);
-		const cardH = imageH + 0.15;
+		const cardH = imageH + (cols > 3 ? 0.17 : 0.15);
 		const current = getSetting(setting.name);
 		setting.options.forEach((option, i) => {
 			const info = environments[option.value];

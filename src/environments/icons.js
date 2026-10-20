@@ -113,6 +113,42 @@ const painters = {
 		ctx.fillRect(34, 118, 48, 42);
 		screen(ctx, 115, 40, 80, 46);
 	},
+	jungle(ctx) {
+		// Night sky in the gap of the canopy, the screen tied between two trunks.
+		ctx.fillStyle = '#081226';
+		ctx.fillRect(0, 0, W, H);
+		ctx.fillStyle = '#e8eef8';
+		for (let i = 0; i < 40; i++) ctx.fillRect((i * 83) % W, (i * 37) % 90, 1.5, 1.5);
+		ctx.fillStyle = '#1e3a1e';
+		for (const [x, y, r] of [[10, 0, 60], [70, -20, 50], [250, -10, 55], [310, 10, 60], [0, 80, 40], [320, 90, 45]]) {
+			ctx.beginPath();
+			ctx.arc(x, y, r, 0, Math.PI * 2);
+			ctx.fill();
+		}
+		ctx.fillStyle = '#3a2e24';
+		ctx.fillRect(48, 20, 22, H);
+		ctx.fillRect(250, 20, 22, H);
+		ctx.strokeStyle = '#a08a62';
+		ctx.lineWidth = 1.5;
+		for (const [x0, x1, y] of [[70, 92, 40], [70, 92, 108], [250, 228, 40], [250, 228, 108]]) {
+			ctx.beginPath();
+			ctx.moveTo(x0, y);
+			ctx.lineTo(x1, y + (y < 60 ? 4 : -4));
+			ctx.stroke();
+		}
+		screen(ctx, 95, 42, 130, 64);
+		// The hammock in the foreground, and fireflies.
+		ctx.fillStyle = '#b8402e';
+		ctx.beginPath();
+		ctx.moveTo(30, 150);
+		ctx.quadraticCurveTo(160, 205, 290, 150);
+		ctx.quadraticCurveTo(160, 180, 30, 150);
+		ctx.fill();
+		ctx.fillStyle = '#e0b25a';
+		ctx.fillRect(110, 168, 100, 3);
+		ctx.fillStyle = '#d4ff6a';
+		for (const [x, y] of [[30, 120], [290, 130], [80, 150], [240, 112], [180, 140]]) ctx.fillRect(x, y, 2.5, 2.5);
+	},
 	void(ctx) {
 		const gradient = ctx.createLinearGradient(0, 0, 0, H);
 		gradient.addColorStop(0, '#0b0710');

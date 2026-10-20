@@ -85,7 +85,8 @@ ships.
 - Never rely on `video.volume` (ignored by the Quest Browser): volume goes
   through the Web Audio gain in Player. The film's audio then goes to
   SpatialAudio (src/player/spatial-audio.js), one virtual speaker per
-  channel, never downmixed first (no browser HRTF: it dulls the sound); the AudioContext is only connected once it runs
+  channel, never downmixed first (no browser HRTF: it dulls the sound; no
+  interaural delay on the front speakers: it notches speech at 2 kHz); the AudioContext is only connected once it runs
   (a suspended one would silence the film).
 - User settings live in src/settings.js (`SETTING_DEFINITIONS`, types
   boolean / choice / action); the in-VR settings panel (src/ui/settings-panel.js)
@@ -95,6 +96,13 @@ ships.
   A-Frame doesn't count, so its defaults would otherwise flood the room.
 - Recenter is tied to the headset's own recenter (reference space `reset`
   event): don't add a separate recenter button on the controllers.
+- The menus (library, keyboard, controls, up next, settings) live under
+  `#view` in the rig, laid out for a seated user looking ahead. Recentering
+  reclined turns `#view` with the gaze, so they come in front of the eyes:
+  place any new menu there, and compute rig-relative poses from its parent.
+- Environments for lying down (the jungle hammock) set `head` (where the eyes
+  go) and `screen.tilt` in their layout; keep the line of sight from `head`
+  to the screen clear (the jungle's `blocksScreen` / `plantHidesScreen`).
 - Icons are geometry (src/ui/icons.js), not font glyphs: the bundled Inter
   subset lacks most symbols. Icon buttons should set a `tooltip`.
 - The playback mode badge (Direct play / Remux / Transcoding) must stay
@@ -115,7 +123,8 @@ ships.
   planter, handrail, cargo bag, static `StatusDisplays`; effects: `Candles`,
   `WallClock`, `FloatingObjects` for zero g),
   `sky` (gradient sky, stars, planet, moon, mountains, lake,
-  pines), `Fire` (flames + flickering light; push into `env.effects`),
+  pines), `nature` (trunks, buttress roots, ropes and vines, `PlantCards`
+  instanced leaf cards, treeline, `Fireflies`), `Fire` (flames + flickering light; push into `env.effects`),
   `EnvironmentLighting` (house lights, fixtures and glows that dim, screen
   light, `onScreen` effects).
 - A new environment also needs an entry in `src/environments/index.js` (name,

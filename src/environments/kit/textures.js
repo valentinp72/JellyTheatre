@@ -772,3 +772,197 @@ export function stationPanel() {
 		noise(ctx, w, h, 8, 59);
 	});
 }
+
+/** Tree bark: deep vertical fissures, with patches of moss. */
+export function bark(color = '#4a3a2c', moss = '#3f5a2a') {
+	return canvasTexture(`bark-${color}-${moss}`, 128, 256, (ctx, w, h) => {
+		ctx.fillStyle = color;
+		ctx.fillRect(0, 0, w, h);
+		const rand = random(61);
+		// Moss, mostly in soft patches.
+		for (let i = 0; i < 14; i++) {
+			const x = rand() * w;
+			const y = rand() * h;
+			const r = 10 + rand() * 30;
+			const gradient = ctx.createRadialGradient(x, y, 0, x, y, r);
+			gradient.addColorStop(0, moss);
+			gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+			ctx.globalAlpha = 0.5 + rand() * 0.4;
+			ctx.fillStyle = gradient;
+			for (const dx of [-w, 0, w]) ctx.fillRect(x + dx - r, y - r, r * 2, r * 2);
+		}
+		ctx.globalAlpha = 1;
+		// Fissures: wavy dark lines along the trunk.
+		for (let i = 0; i < 26; i++) {
+			const x0 = rand() * w;
+			ctx.strokeStyle = `rgba(0, 0, 0, ${0.25 + rand() * 0.35})`;
+			ctx.lineWidth = 1 + rand() * 3;
+			ctx.beginPath();
+			for (let y = 0; y <= h; y += 16) {
+				const x = x0 + Math.sin(y * 0.05 + i) * 4 + Math.sin(y * 0.013 + i * 3) * 6;
+				if (y === 0) ctx.moveTo(x, y);
+				else ctx.lineTo(x, y);
+			}
+			ctx.stroke();
+		}
+		noise(ctx, w, h, 18, 63);
+	});
+}
+
+/** Forest floor: dark soil under fallen leaves and twigs. */
+export function leafLitter(color = '#2a2418') {
+	return canvasTexture(`litter-${color}`, 256, 256, (ctx, w, h) => {
+		ctx.fillStyle = color;
+		ctx.fillRect(0, 0, w, h);
+		const rand = random(71);
+		const tones = ['#4a3a22', '#5a4426', '#3a3a1e', '#6a5030', '#2e3a1c', '#3e2c1a'];
+		for (let i = 0; i < 420; i++) {
+			const x = rand() * w;
+			const y = rand() * h;
+			const length = 5 + rand() * 12;
+			ctx.save();
+			ctx.translate(x, y);
+			ctx.rotate(rand() * Math.PI);
+			ctx.fillStyle = tones[Math.floor(rand() * tones.length)];
+			ctx.globalAlpha = 0.6 + rand() * 0.4;
+			ctx.beginPath();
+			ctx.ellipse(0, 0, length, length * (0.3 + rand() * 0.2), 0, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.restore();
+		}
+		ctx.globalAlpha = 1;
+		// Twigs.
+		for (let i = 0; i < 30; i++) {
+			ctx.strokeStyle = `rgba(30, 20, 12, ${0.5 + rand() * 0.4})`;
+			ctx.lineWidth = 1 + rand();
+			const x = rand() * w;
+			const y = rand() * h;
+			const a = rand() * Math.PI;
+			ctx.beginPath();
+			ctx.moveTo(x, y);
+			ctx.lineTo(x + Math.cos(a) * 24, y + Math.sin(a) * 24);
+			ctx.stroke();
+		}
+		noise(ctx, w, h, 14, 73);
+	});
+}
+
+/**
+ * Leaves on a transparent background, for plant cards (use with alphaTest).
+ * Drawn light: tint them with the material or instance color.
+ * - frond: a palm or fern frond, leaflets along a curved stem (stem at the bottom);
+ * - broad: one big banana-like leaf with veins and a few tears (stem at the bottom);
+ * - canopy: a mass of small leaves, for tree crowns seen from below.
+ * @param {'frond' | 'broad' | 'canopy'} kind
+ */
+export function foliage(kind) {
+	const [w, h] = kind === 'canopy' ? [256, 256] : [128, 256];
+	return canvasTexture(`foliage-${kind}`, w, h, (ctx) => FOLIAGE_PAINTERS[kind](ctx, w, h, random(kind.length * 17)), { repeat: false });
+}
+
+const leafShades = (rand) => `hsl(${95 + rand() * 30}, ${35 + rand() * 20}%, ${42 + rand() * 18}%)`;
+
+const FOLIAGE_PAINTERS = {
+	frond(ctx, w, h, rand) {
+		// The stem: from the bottom center, bending to one side near the tip.
+		const stem = (t) => [w / 2 + Math.sin(t * 1.6) * w * 0.12 * t, h - t * h * 0.96];
+		ctx.strokeStyle = '#8a9a5a';
+		ctx.lineWidth = 3;
+		ctx.beginPath();
+		for (let t = 0; t <= 1; t += 0.05) ctx.lineTo(...stem(t));
+		ctx.stroke();
+		for (let t = 0.12; t < 0.98; t += 0.035) {
+			const [x, y] = stem(t);
+			const length = w * 0.42 * Math.sin(Math.PI * Math.min(1, t * 1.1)) + 4;
+			for (const side of [-1, 1]) {
+				ctx.save();
+				ctx.translate(x, y);
+				ctx.rotate(side * (1.05 - t * 0.35));
+				ctx.fillStyle = leafShades(rand);
+				ctx.beginPath();
+				ctx.ellipse(0, -length / 2, length * 0.09, length / 2, 0, 0, Math.PI * 2);
+				ctx.fill();
+				ctx.restore();
+			}
+		}
+	},
+	broad(ctx, w, h, rand) {
+		const outline = (x) => Math.sin(Math.PI * x) ** 0.7;
+		const half = w * 0.46;
+		ctx.fillStyle = leafShades(rand);
+		ctx.beginPath();
+		ctx.moveTo(w / 2, h);
+		for (let t = 0; t <= 1; t += 0.05) ctx.lineTo(w / 2 + half * outline(t), h - t * h);
+		for (let t = 1; t >= 0; t -= 0.05) ctx.lineTo(w / 2 - half * outline(t), h - t * h);
+		ctx.fill();
+		// Veins, and tears between some of them (cut out).
+		for (let t = 0.08; t < 0.95; t += 0.06) {
+			const y = h - t * h;
+			for (const side of [-1, 1]) {
+				const x = w / 2 + side * half * outline(t + 0.08) * 1.05;
+				const yEnd = y - h * 0.05;
+				if (rand() < 0.22) {
+					ctx.globalCompositeOperation = 'destination-out';
+					ctx.lineWidth = 2.5;
+					ctx.beginPath();
+					ctx.moveTo(w / 2 + side * w * 0.12, y - h * 0.01);
+					ctx.lineTo(x, yEnd);
+					ctx.stroke();
+					ctx.globalCompositeOperation = 'source-over';
+				}
+				ctx.strokeStyle = 'rgba(220, 235, 170, 0.35)';
+				ctx.lineWidth = 1;
+				ctx.beginPath();
+				ctx.moveTo(w / 2, y);
+				ctx.lineTo(x * 0.98 + (w / 2) * 0.02, yEnd);
+				ctx.stroke();
+			}
+		}
+		ctx.strokeStyle = 'rgba(230, 240, 190, 0.7)';
+		ctx.lineWidth = 3;
+		ctx.beginPath();
+		ctx.moveTo(w / 2, h);
+		ctx.lineTo(w / 2, 4);
+		ctx.stroke();
+	},
+	canopy(ctx, w, h, rand) {
+		// Small leaves, denser in the middle, thinning out to ragged edges.
+		for (let i = 0; i < 520; i++) {
+			const angle = rand() * Math.PI * 2;
+			const radius = Math.sqrt(rand()) * w * 0.46;
+			const x = w / 2 + Math.cos(angle) * radius;
+			const y = h / 2 + Math.sin(angle) * radius;
+			const length = 7 + rand() * 9;
+			ctx.save();
+			ctx.translate(x, y);
+			ctx.rotate(rand() * Math.PI * 2);
+			ctx.fillStyle = leafShades(rand);
+			ctx.beginPath();
+			ctx.ellipse(0, 0, length * 0.4, length, 0, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.restore();
+		}
+	},
+};
+
+/** Woven stripes along the length of a hammock (u: across, v: along). */
+export function stripes(colors = ['#b8402e', '#e0b25a', '#efe3c8', '#2f7a78', '#2a3a6b']) {
+	return canvasTexture(`stripes-${colors.join('')}`, 128, 32, (ctx, w, h) => {
+		const rand = random(83);
+		let x = 0;
+		let i = 0;
+		while (x < w) {
+			const width = 3 + rand() * 9;
+			ctx.fillStyle = colors[i % colors.length];
+			ctx.fillRect(x, 0, width, h);
+			x += width;
+			i += 1 + Math.floor(rand() * 2);
+		}
+		// The weave: fine cross threads.
+		ctx.globalAlpha = 0.12;
+		ctx.fillStyle = '#000000';
+		for (let y = 0; y < h; y += 2) ctx.fillRect(0, y, w, 1);
+		ctx.globalAlpha = 1;
+		noise(ctx, w, h, 16, 85);
+	});
+}

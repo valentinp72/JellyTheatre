@@ -63,7 +63,17 @@ Not the browser's HRTF panner: tested on the Quest, it made the whole film
 dull. A spherical head model instead: the ear facing a speaker gets the
 signal untouched, the other ear a delay (Woodworth, up to 0.66 ms) and a
 treble cut (high shelf at 1.8 kHz, up to -12 dB). The centre channel reaches
-both ears unfiltered. The controls show what the sound actually carries
+both ears unfiltered.
+
+Dialogue clarity, measured offline against the downmix (pink noise, ear
+spectra per octave): with the full delay on the front speakers, what left and
+right share (dialogue in a stereo film, music) cancelled itself by -9 dB around
+2 kHz in each ear, and the surrounds were 3 dB louder than in the downmix. So
+the delay fades in only for sounds more than about 25° off the nose (fully from
+50°), and the surrounds play at -3 dB like in the ITU downmix: now within
++3 / -3 dB of the downmix everywhere, with no notch.
+
+The controls show what the sound actually carries
 (`5.1 sound`), measured per channel: a browser may downmix before Web Audio.
 Off, the browser downmixes to stereo.
 
@@ -186,3 +196,15 @@ Next features are in the [README roadmap](../README.md#roadmap).
   returns to 16:9 after a film).
 - **v0.3.0**: virtual surround (cinema speakers around the seat, a head model
   that keeps the treble).
+- **v0.4.0, jungle hammock**: the first environment for lying down (in bed). The
+  layout's `head` puts the eyes on the hammock and its `screen.tilt` leans the
+  screen back above them; in VR it is always recentered reclined. Recentering
+  reclined now also turns the picture upright for the eyes (whichever way the
+  user lies), and the menus, under `#view`, follow the gaze. New kit:
+  `nature.js` (trunks, buttress roots, ropes, instanced leaf cards, treeline,
+  fireflies) and bark, leaf litter, foliage and hammock textures. The
+  environment picker shows four cards a row from seven environments. Room
+  brightness also dims the moon and the lantern; fireflies keep away from the
+  screen. Virtual surround: no more speech notch around 2 kHz, surrounds at
+  -3 dB; the film is no longer silent when it starts with Virtual surround
+  off.

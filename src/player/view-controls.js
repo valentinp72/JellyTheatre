@@ -7,7 +7,10 @@
 // - Recenter: with the headset's own recenter (hold the Meta button), or from
 //   the settings. Upright, only the direction is corrected and the room stays
 //   level; reclined or lying down (head pointing well above the horizon), the
-//   view is also tilted so the screen is in front of your eyes.
+//   view is also tilted so the screen is in front of your eyes, upright, and
+//   the menus (the `view` entity) come in front of your eyes too.
+// - Environments where the viewer lies down (a hammock) are always recentered
+//   that way in VR, and put the viewer's head at a fixed spot (`head`).
 // - Left stick click: back to your seat.
 //
 // Everything moves the camera rig; emits `rig-moved` on the scene afterwards.
@@ -28,18 +31,27 @@ const SEAT_AIM_HEIGHT = 0.5;
 const ARC_POINTS = 24;
 const FADE_MS = 120;
 
+// Eye height the menus are laid out for (rig-local, seated).
+const MENU_EYE_HEIGHT = 1.2;
+
 const UP = new THREE.Vector3(0, 1, 0);
 
 AFRAME.registerComponent('view-controls', {
 	schema: {
 		rig: { type: 'selector', default: '#rig' },
 		camera: { type: 'selector', default: '#camera' },
+		// Holds the menus; tilted with the user's gaze when reclined.
+		view: { type: 'selector', default: '#view' },
 		hands: { type: 'selectorAll', default: '#left-hand, #right-hand' },
 		right: { type: 'selector', default: '#right-hand' },
 		left: { type: 'selector', default: '#left-hand' },
 		// Where the screen is, and the seat (rig floor position) to return to.
 		target: { type: 'vec3', default: { x: 0, y: 4.6, z: -11.9 } },
 		seat: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
+		// Lying-down environment: always recentered reclined (in VR), the eyes at
+		// `head` (a world position) instead of seated height above the seat.
+		lying: { type: 'boolean', default: false },
+		head: { type: 'vec3', default: { x: 0, y: 1, z: 0 } },
 		// Entity whose environment component lists the seats (seatPositions()).
 		environment: { type: 'selector', default: '#environment' },
 	},
@@ -60,7 +72,8 @@ AFRAME.registerComponent('view-controls', {
 		this.heightOffset = getSetting('heightOffset');
 		this.onSettingChange = ({ detail }) => {
 			if (detail.name !== 'heightOffset') return;
-			this.data.rig.object3D.position.y += detail.value - this.heightOffset;
+			// Lying down, the head is placed exactly: no seat height to adjust.
+			if (!this.data.lying) this.data.rig.object3D.position.y += detail.value - this.heightOffset;
 			this.heightOffset = detail.value;
 			this.emitMoved();
 		};
@@ -240,7 +253,8 @@ AFRAME.registerComponent('view-controls', {
 
 	/**
 	 * Brings the screen in front of the user. Upright, only the direction is
-	 * corrected (the room stays level). Reclined, the view is also tilted.
+	 * corrected (the room stays level). Reclined, the view is also tilted, with
+	 * the picture upright for the eyes, and the menus follow the gaze.
 	 */
 	recenter() {
 		const rig = this.data.rig.object3D;
@@ -253,21 +267,78 @@ AFRAME.registerComponent('view-controls', {
 		const head = this.headPosition();
 		const toScreen = new THREE.Vector3().copy(this.data.target).sub(head).normalize();
 		const forward = this.headForward();
-		const reclined = Math.asin(forward.y) > RECLINE_THRESHOLD;
+		// (On the flat page, the room stays level: the view is aimed instead.)
+		const immersive = this.el.sceneEl.is('vr-mode') || this.el.sceneEl.is('ar-mode');
+		const reclined = (this.data.lying && immersive) || Math.asin(forward.y) > RECLINE_THRESHOLD;
+		this.placeMenus(reclined);
 		if (!reclined) {
 			forward.y = 0;
 			toScreen.y = 0;
 			if (forward.lengthSq() < 1e-6 || toScreen.lengthSq() < 1e-6) return;
 			forward.normalize();
 			toScreen.normalize();
+			this.rotateAroundHead(new THREE.Quaternion().setFromUnitVectors(forward, toScreen));
+			return;
 		}
-		this.rotateAroundHead(new THREE.Quaternion().setFromUnitVectors(forward, toScreen));
+		// Gaze onto the screen, and the top of the head towards the top of the
+		// picture (else it could look rotated, depending on how the user lies).
+		const camera = this.data.camera.object3D;
+		const headUp = new THREE.Vector3(0, 1, 0).transformDirection(camera.matrixWorld);
+		const screenUp = this.screenUp();
+		const from = frame(forward, headUp);
+		const to = frame(toScreen, screenUp.sub(toScreen.clone().multiplyScalar(screenUp.dot(toScreen))));
+		if (!from || !to) {
+			this.rotateAroundHead(new THREE.Quaternion().setFromUnitVectors(forward, toScreen));
+			return;
+		}
+		this.rotateAroundHead(new THREE.Quaternion().setFromRotationMatrix(to.multiply(from.transpose())));
+	},
+
+	/** World "up" of the picture (the screen can be tilted). */
+	screenUp() {
+		const screen = document.getElementById('screen')?.object3D;
+		if (!screen) return UP.clone();
+		screen.updateMatrixWorld();
+		return new THREE.Vector3(0, 1, 0).transformDirection(screen.matrixWorld);
+	},
+
+	/**
+	 * The menus are laid out for a seated user looking ahead. Reclined, they
+	 * turn with the gaze (as it is now, in the rig), around the eyes.
+	 */
+	placeMenus(reclined) {
+		const view = this.data.view?.object3D;
+		if (!view) return;
+		if (!reclined) {
+			view.position.set(0, 0, 0);
+			view.quaternion.identity();
+			return;
+		}
+		// The head's pose in the rig (where the menus live).
+		const rig = this.data.rig.object3D;
+		const camera = this.data.camera.object3D;
+		rig.updateMatrixWorld();
+		camera.updateMatrixWorld();
+		const pose = new THREE.Matrix4().copy(rig.matrixWorld).invert().multiply(camera.matrixWorld);
+		const eyes = new THREE.Vector3();
+		pose.decompose(eyes, view.quaternion, new THREE.Vector3());
+		view.position.set(0, -MENU_EYE_HEIGHT, 0).applyQuaternion(view.quaternion).add(eyes);
 	},
 
 	/** Back on the seat (default: the environment's), level, facing the screen. */
 	backToSeat(seat = this.data.seat) {
 		const rig = this.data.rig.object3D;
 		rig.quaternion.identity();
+		if (this.data.lying) {
+			// Lying down: the eyes go exactly where the head rests (recentering
+			// turns around the head, which stays there).
+			rig.position.set(seat.x, seat.y, seat.z);
+			this.emitMoved();
+			rig.position.add(new THREE.Vector3().copy(this.data.head).sub(this.headPosition()));
+			this.emitMoved();
+			this.recenter();
+			return;
+		}
 		rig.position.set(seat.x, seat.y + getSetting('heightOffset'), seat.z);
 		this.emitMoved();
 		this.recenter();
@@ -290,3 +361,16 @@ AFRAME.registerComponent('view-controls', {
 		this.data.camera.object3D.remove(this.fader);
 	},
 });
+
+/**
+ * Rotation matrix whose axes are a view's right, up and backward, from where
+ * it looks (`forward`) and its up direction (made perpendicular).
+ */
+function frame(forward, up) {
+	const f = forward.clone().normalize();
+	const right = new THREE.Vector3().crossVectors(f, up);
+	if (right.lengthSq() < 1e-6) return null;
+	right.normalize();
+	const u = new THREE.Vector3().crossVectors(right, f);
+	return new THREE.Matrix4().makeBasis(right, u, f.negate());
+}

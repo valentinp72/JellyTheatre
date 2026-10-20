@@ -40,6 +40,7 @@ const sceneEl = document.querySelector('a-scene');
 const environmentEl = document.getElementById('environment');
 const screenEl = document.getElementById('screen');
 const rigEl = document.getElementById('rig');
+const cameraEl = document.getElementById('camera');
 const libraryEl = document.getElementById('library-panel');
 const controlsEl = document.getElementById('player-controls');
 const upNextEl = document.getElementById('up-next');
@@ -92,8 +93,9 @@ function placeLibrary() {
 		const world = new THREE.Matrix4()
 			.copy(screenEl.object3D.matrixWorld)
 			.multiply(new THREE.Matrix4().compose(new THREE.Vector3(0, 0, 0.05), new THREE.Quaternion(), new THREE.Vector3(scale, scale, scale)));
-		rigEl.object3D.updateMatrixWorld();
-		world.premultiply(new THREE.Matrix4().copy(rigEl.object3D.matrixWorld).invert());
+		// (Its ancestors too: the rig may just have moved.)
+		object.parent.updateWorldMatrix(true, false);
+		world.premultiply(new THREE.Matrix4().copy(object.parent.matrixWorld).invert());
 		world.decompose(object.position, object.quaternion, object.scale);
 	} else {
 		libraryEl.setAttribute('library-panel', { fillWidth: 0, fillHeight: 0 });
@@ -119,16 +121,32 @@ function setupEnvironment(key) {
 	// Passthrough: no background, so the real room shows through.
 	if (layout.ar) sceneEl.removeAttribute('background');
 	else sceneEl.setAttribute('background', 'color: #000000');
-	const { position, maxWidth, maxHeight } = layout.screen;
+	const { position, maxWidth, maxHeight, tilt = 0 } = layout.screen;
 	screenEl.object3D.position.set(position.x, position.y, position.z);
 	screenEl.setAttribute('video-screen', { maxWidth, maxHeight });
+	// A screen above a lying viewer leans back, facing down towards them.
+	screenEl.object3D.rotation.set(THREE.MathUtils.degToRad(tilt), 0, 0);
 	rigEl.object3D.position.set(layout.seat.x, layout.seat.y, layout.seat.z);
-	screenEl.object3D.quaternion.identity();
+	rigEl.object3D.quaternion.identity();
+	// Lying down: the eyes on the pillow (in VR, view-controls does it on the
+	// real head; this is for the flat page).
+	if (layout.head) rigEl.object3D.position.set(layout.head.x, layout.head.y, layout.head.z).sub(cameraEl.object3D.position);
+	lookAtScreenFlat(layout);
 	updateColorSampling();
-	sceneEl.setAttribute('view-controls', { target: position, seat: layout.seat });
+	sceneEl.setAttribute('view-controls', { target: position, seat: layout.seat, lying: Boolean(layout.head), head: layout.head ?? { x: 0, y: 1, z: 0 } });
 	setScreenMovable(Boolean(layout.ar));
 	environment()?.setHouseLights(!player.isActive);
 	placeLibrary();
+}
+
+/** On the flat page, looks up at a screen above a lying viewer (level elsewhere). */
+function lookAtScreenFlat(layout) {
+	const look = cameraEl.components['look-controls'];
+	if (!look?.pitchObject || sceneEl.is('vr-mode') || sceneEl.is('ar-mode')) return;
+	const { position } = layout.screen;
+	const head = layout.head;
+	look.yawObject.rotation.y = 0;
+	look.pitchObject.rotation.x = head ? Math.atan2(position.y - head.y, Math.hypot(position.x - head.x, position.z - head.z)) : 0;
 }
 
 /**

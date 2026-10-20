@@ -13,6 +13,11 @@
 // later (interaural delay, up to 0.66 ms) and with less treble (head shadow).
 // A speaker straight ahead (the centre channel, dialogue) reaches both ears
 // unfiltered. Head tracking resolves front and back.
+//
+// Speech stays clear: the interaural delay only builds up for sounds well off
+// to the side. For the front speakers it would make what they share (dialogue
+// in a stereo film, music) cancel itself around 2 kHz, where speech is
+// understood. And the surrounds play 3 dB lower, as in the standard downmix.
 
 import * as THREE from 'three';
 
@@ -26,6 +31,14 @@ const LAYOUTS = {
 // Bass channel level in the headphones (-6 dB): it is mixed hot for cinema
 // subwoofers, and the main channels already carry bass.
 const LFE_GAIN = 0.5;
+// Surround channels: -3 dB, the level the ITU stereo downmix gives them (else
+// effects and music cover the dialogue more than with spatial audio off).
+const SURROUND_GAIN = Math.SQRT1_2;
+// The interaural delay fades in between these lateral positions (sin of the
+// angle off the nose): none for the front speakers seen from the seat (±25°),
+// all of it from about 50° to the side.
+const ITD_FROM = 0.45;
+const ITD_FULL = 0.8;
 // Each ear also hears the speakers of the other side, as in a real room:
 // -3 dB brings dialogue (centre channel) to the level of the plain stereo
 // downmix, so turning spatial audio on or off doesn't jump in loudness.
@@ -74,7 +87,8 @@ class VirtualSpeaker {
 		const time = this.ctx.currentTime;
 		const angle = Math.asin(Math.min(1, Math.abs(lateral)));
 		// Woodworth's formula for the extra path around the head.
-		const itd = (HEAD_RADIUS / SOUND_SPEED) * (angle + Math.sin(angle));
+		const fade = THREE.MathUtils.smoothstep(Math.abs(lateral), ITD_FROM, ITD_FULL);
+		const itd = (HEAD_RADIUS / SOUND_SPEED) * (angle + Math.sin(angle)) * fade;
 		this.ears.forEach((ear, index) => {
 			// Positive on the far side of the head for this ear.
 			const away = index === 0 ? lateral : -lateral;
@@ -97,7 +111,8 @@ export class SpatialAudio {
 		this.context = context;
 		this.input = input;
 		this.output = output;
-		this.enabled = false;
+		// Unset until the first configure(), which always connects something.
+		this.enabled = null;
 		this.channels = 0;
 		this.nodes = [];
 		this.speakers = [];
@@ -143,6 +158,7 @@ export class SpatialAudio {
 			channel.connect(meter);
 			this.nodes.push(channel, meter);
 			this.meters.push(meter);
+			if (typeof place === 'object') channel.gain.value = SURROUND_GAIN;
 			if (place === 'lfe') {
 				channel.gain.value = LFE_GAIN;
 				channel.connect(this.output);

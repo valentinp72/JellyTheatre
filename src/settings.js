@@ -29,11 +29,12 @@ export const SETTING_DEFINITIONS = [
 			{ value: 'home', label: 'Home cinema' },
 			{ value: 'station', label: 'Space station' },
 			{ value: 'cabin', label: 'Lakeside cabin' },
+			{ value: 'jungle', label: 'Jungle' },
 			{ value: 'void', label: 'Dark void' },
 			{ value: 'passthrough', label: 'My room' },
 		],
 		label: 'Environment',
-		description: 'Where you watch: a theatre, a home cinema, a space station, a cabin… or your own room.',
+		description: 'Where you watch: a theatre, a home cinema, a space station, a cabin, a hammock in the jungle… or your own room.',
 	},
 	{
 		name: 'roomBrightness',
