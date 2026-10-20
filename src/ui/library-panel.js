@@ -105,12 +105,21 @@ AFRAME.registerComponent('library-panel', {
 		this.background = entity({ 'ui-rect': `width: ${WIDTH}; height: ${HEIGHT}; radius: 0.04; opacity: 0.95` });
 		this.el.append(this.background);
 		this.heading = entity({ position: `${LEFT} ${TOP - 0.065} 0.002`, 'ui-text': 'value: Now showing; fontSize: 0.05; weight: bold; anchorX: left' });
-		this.refreshButton = this.button({ label: 'Refresh', width: 0.18 }, RIGHT - 0.09, TOP - 0.065, () => this.el.emit('refresh-request'));
-		this.settingsButton = this.button({ label: 'Settings', width: 0.2 }, RIGHT - 0.18 - 0.02 - 0.1, TOP - 0.065, () => this.el.emit('settings-request'));
+		// Header buttons, right to left.
+		let headerX = RIGHT;
+		const headerButton = (label, icon, width, onClick) => {
+			const el = this.button({ label, icon, iconPosition: 'left', width }, headerX - width / 2, TOP - 0.065, onClick);
+			headerX -= width + 0.02;
+			return el;
+		};
+		this.refreshButton = headerButton('Refresh', 'refresh', 0.22, () => this.el.emit('refresh-request'));
+		this.settingsButton = headerButton('Settings', 'settings', 0.24, () => this.el.emit('settings-request'));
+		// A shortcut to the environment picker (also in the settings).
+		this.environmentButton = headerButton('Environment', 'environment', 0.3, () => this.el.emit('settings-request', { picker: 'environment' }));
 		this.message = entity({ position: '0 0 0.002', 'ui-text': `fontSize: 0.036; maxWidth: ${WIDTH - 0.4}; align: center; color: ${COLORS.muted}` });
 		// In the header, between the title and the buttons: below the panel it
 		// would end up inside the stage when the panel is on the cinema screen.
-		this.notice = entity({ position: `${LEFT + 0.78} ${TOP - 0.065} 0.002`, 'ui-text': 'fontSize: 0.026; maxWidth: 0.8; anchorX: left; color: #ff6b7a' });
+		this.notice = entity({ position: `${LEFT + 0.78} ${TOP - 0.065} 0.002`, 'ui-text': 'fontSize: 0.026; maxWidth: 0.56; anchorX: left; color: #ff6b7a' });
 		this.el.append(this.heading, this.refreshButton, this.message, this.notice);
 
 		this.buildTabs();
@@ -592,6 +601,7 @@ AFRAME.registerComponent('library-panel', {
 		const signedIn = this.sources !== null;
 		this.show(this.refreshButton, signedIn);
 		this.show(this.settingsButton, signedIn);
+		this.show(this.environmentButton, signedIn);
 		for (const tab of TABS) {
 			const el = this.tabEls[tab.id];
 			el.setAttribute('ui-button', 'active', tab.id === this.tab);

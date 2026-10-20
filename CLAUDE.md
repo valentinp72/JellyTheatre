@@ -128,7 +128,9 @@ ships.
   `EnvironmentLighting` (house lights, fixtures and glows that dim, screen
   light, `onScreen` effects).
 - A new environment also needs an entry in `src/environments/index.js` (name,
-  description), an option in the `environment` setting and a picker
+  description, `tags` from `ENVIRONMENT_TAGS`: indoor / outdoor / passthrough,
+  each posture it offers, several seats; shown as chips with geometry icons
+  on the picker cards), an option in the `environment` setting and a picker
   illustration in `src/environments/icons.js`.
 - Quest budget for an environment: ~50 draw calls and ~150k triangles (it is
   drawn once per eye). Keep instanced models low-poly.

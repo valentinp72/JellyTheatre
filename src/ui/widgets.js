@@ -93,8 +93,10 @@ AFRAME.registerComponent('ui-button', {
 		active: { type: 'boolean', default: false },
 		disabled: { type: 'boolean', default: false },
 		align: { type: 'string', default: 'center', oneOf: ['left', 'center'] },
-		// Icon name (see icons.js); with a label too, the label becomes a small caption.
+		// Icon name (see icons.js); with a label too, the label becomes a small
+		// caption under it, or stays beside it (iconPosition: left).
 		icon: { type: 'string', default: '' },
+		iconPosition: { type: 'string', default: 'top', oneOf: ['top', 'left'] },
 		// Text announced on hover (`tooltip` event, bubbling) for icon buttons.
 		tooltip: { type: 'string', default: '' },
 		// Corner radius; negative: 30 % of the height (pill-like buttons).
@@ -148,21 +150,29 @@ AFRAME.registerComponent('ui-button', {
 			this.icon = document.createElement('a-entity');
 			this.el.appendChild(this.icon);
 		}
-		const captioned = Boolean(d.icon && d.label);
+		const inline = Boolean(d.icon && d.label && d.iconPosition === 'left');
+		const captioned = Boolean(d.icon && d.label) && !inline;
+		// Icon and label side by side, centred together (the label's width is
+		// estimated: troika measures it later).
+		const iconSize = inline ? d.height * 0.42 : Math.min(d.width, d.height) * (captioned ? 0.36 : 0.5);
+		const iconGap = 0.012;
+		const inlineStart = -(iconSize + iconGap + d.label.length * d.fontSize * 0.55) / 2;
 		if (this.icon) {
 			this.icon.object3D.visible = Boolean(d.icon);
-			const size = Math.min(d.width, d.height) * (captioned ? 0.36 : 0.5);
-			this.icon.setAttribute('position', `0 ${captioned ? d.height * 0.15 : 0} 0.002`);
-			if (d.icon) this.icon.setAttribute('ui-icon', { name: d.icon, size, color });
+			const x = inline ? inlineStart + iconSize / 2 : 0;
+			this.icon.setAttribute('position', `${x} ${captioned ? d.height * 0.15 : 0} 0.002`);
+			if (d.icon) this.icon.setAttribute('ui-icon', { name: d.icon, size: iconSize, color });
 		}
-		this.label.object3D.position.x = left ? -d.width / 2 + padding : 0;
-		this.label.object3D.position.y = captioned ? -d.height * 0.24 : 0;
+		// Through the attribute: the label's own position would override object3D
+		// once it loads.
+		const labelX = inline ? inlineStart + iconSize + iconGap : left ? -d.width / 2 + padding : 0;
+		this.label.setAttribute('position', `${labelX} ${captioned ? -d.height * 0.24 : 0} 0.002`);
 		this.label.setAttribute('ui-text', {
 			value: d.label,
 			fontSize: captioned ? d.height * 0.2 : d.fontSize,
 			maxWidth: d.width - 2 * padding,
-			align: d.align,
-			anchorX: left ? 'left' : 'center',
+			align: inline ? 'left' : d.align,
+			anchorX: left || inline ? 'left' : 'center',
 			color,
 			weight: d.active ? 'bold' : 'normal',
 		});

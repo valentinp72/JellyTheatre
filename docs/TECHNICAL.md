@@ -208,3 +208,10 @@ Next features are in the [README roadmap](../README.md#roadmap).
   screen. Virtual surround: no more speech notch around 2 kHz, surrounds at
   -3 dB; the film is no longer silent when it starts with Virtual surround
   off.
+- **v0.4.1**: the environment picker fills the panel (four cards a row) and
+  tags each place with icon chips (`ENVIRONMENT_TAGS`: indoor / outdoor /
+  passthrough, sitting / lying down / floating, several seats); the current
+  one is outlined. Shorter descriptions. Shortcuts to the picker: an
+  Environment button in the library's header and a landscape icon on the
+  controls (choosing closes the panel). Header buttons get icons beside their
+  label (`ui-button` `iconPosition: left`).

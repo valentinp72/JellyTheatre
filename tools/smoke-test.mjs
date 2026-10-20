@@ -100,6 +100,17 @@ async function main() {
 			return panel.detailPlayback.getAttribute('ui-text').value.startsWith('Direct play');
 		});
 
+		await clickButton('#library-panel', 'Environment');
+		await expect('the library\'s shortcut opens the environment picker', () => {
+			const panel = document.querySelector('#settings-panel').components['settings-panel'];
+			return panel.visible && panel.pickerSetting?.name === 'environment';
+		});
+		await page.evaluate(() => {
+			const panel = document.querySelector('#settings-panel').components['settings-panel'];
+			panel.picker.children[panel.pickerSetting.options.findIndex((o) => o.value === 'theater')].emit('click');
+		});
+		await expect('choosing from the shortcut closes the panel', () => !document.querySelector('#settings-panel').components['settings-panel'].visible);
+
 		await clickButton('#library-panel', 'Settings');
 		await expect('settings panel opens', () => document.querySelector('#settings-panel').object3D.visible);
 		for (const key of ENVIRONMENTS) {

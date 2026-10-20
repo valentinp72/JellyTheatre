@@ -200,6 +200,8 @@ async function switchEnvironment(key) {
 		// The store app closes as soon as its session ends: the setting is
 		// saved, and the next launch starts the right kind of session.
 		settings().setNote('environment', `${environments[key].name} opens the next time you start JellyTheatre.`);
+		// Chosen from a shortcut, the panel closed: show the note.
+		if (!settings().visible) openSettings('display');
 		return;
 	}
 	settings().setNote('environment', '');
@@ -230,10 +232,13 @@ function showControls() {
 	}, CONTROLS_HIDE_DELAY_MS);
 }
 
-/** The settings panel can be opened anytime, even during a film. */
-/** @param {string} [category] settings tab to open (e.g. 'subtitles') */
-function openSettings(category) {
-	settings().setVisible(true, typeof category === 'string' ? category : undefined);
+/**
+ * The settings panel can be opened anytime, even during a film.
+ * @param {string} [category] settings tab to open (e.g. 'subtitles')
+ * @param {string} [picker] setting whose picker to open (e.g. 'environment')
+ */
+function openSettings(category, picker) {
+	settings().setVisible(true, category, picker);
 }
 
 function closeSettings() {
@@ -365,8 +370,8 @@ sceneReady.then(() => {
 	libraryEl.addEventListener('play-item', ({ detail }) => startPlayback(detail.item, detail.startPosition, detail.mediaSourceId));
 	libraryEl.addEventListener('refresh-request', () => library().refresh());
 	controlsEl.addEventListener('activity', showControls);
-	controlsEl.addEventListener('settings-request', ({ detail }) => openSettings(detail?.category));
-	libraryEl.addEventListener('settings-request', openSettings);
+	controlsEl.addEventListener('settings-request', ({ detail }) => openSettings(detail?.category, detail?.picker));
+	libraryEl.addEventListener('settings-request', ({ detail }) => openSettings(detail?.category, detail?.picker));
 	settingsEl.addEventListener('close-request', closeSettings);
 	screenEl.addEventListener('grab-moving', screenMoved);
 	controlsEl.addEventListener('stop-request', async () => {

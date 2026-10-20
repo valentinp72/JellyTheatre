@@ -3,7 +3,7 @@
 // `close-request`.
 
 import * as THREE from 'three';
-import { environments } from '../environments/index.js';
+import { ENVIRONMENT_TAGS, environments } from '../environments/index.js';
 import { environmentIcon } from '../environments/icons.js';
 import { getSetting, runSettingAction, setSetting, SETTING_CATEGORIES, SETTING_DEFINITIONS } from '../settings.js';
 import { COLORS, entity, loadTexture, roundedRect, setInteractiveVisible } from './widgets.js';
@@ -119,11 +119,22 @@ AFRAME.registerComponent('settings-panel', {
 		window.removeEventListener('settingchange', this.onSettingChange);
 	},
 
-	/** @param {string} [category] tab to open (default: the last one shown) */
-	setVisible(visible, category) {
+	/**
+	 * @param {string} [category] tab to open (default: the last one shown)
+	 * @param {string} [picker] setting whose picker to open instead (a shortcut:
+	 * choosing closes the panel)
+	 */
+	setVisible(visible, category, picker) {
 		this.visible = visible;
 		setInteractiveVisible(this.el, visible);
-		if (visible) this.showList(category);
+		if (!visible) return;
+		const pickerSetting = picker && SETTING_DEFINITIONS.find((setting) => setting.name === picker);
+		if (pickerSetting) {
+			this.category = pickerSetting.category;
+			this.showPicker(pickerSetting, true);
+		} else {
+			this.showList(category);
+		}
 	},
 
 	showList(category = this.category) {
@@ -146,9 +157,13 @@ AFRAME.registerComponent('settings-panel', {
 		row.description.setAttribute('ui-text', { value: text || row.setting.description, color: text ? COLORS.accent2 : COLORS.muted });
 	},
 
-	/** A page of illustrated cards to choose the value of `setting`. */
-	showPicker(setting) {
+	/**
+	 * A page of illustrated cards to choose the value of `setting`.
+	 * @param {boolean} [shortcut] opened directly: close the panel once chosen
+	 */
+	showPicker(setting, shortcut = false) {
 		this.pickerSetting = setting;
+		this.pickerShortcut = shortcut;
 		this.title.setAttribute('ui-text', 'value', `Choose: ${setting.label.toLowerCase()}`);
 		this.buildPicker(setting);
 		setInteractiveVisible(this.list, false);
@@ -158,23 +173,55 @@ AFRAME.registerComponent('settings-panel', {
 
 	buildPicker(setting) {
 		this.picker.replaceChildren();
-		// Two rows: three cards each, or more (narrower, a line more of text).
-		const cols = Math.max(3, Math.ceil(setting.options.length / 2));
-		const gap = 0.04;
+		// Two rows filling the page: four cards each for up to eight places,
+		// more (narrower) after that.
+		const n = setting.options.length;
+		const cols = Math.max(3, Math.ceil(n / 2));
+		const rows = Math.ceil(n / cols);
+		const gap = 0.035;
+		const top = TOP - 0.135;
+		const bottom = -TOP + 0.05;
 		const cardW = (RIGHT - LEFT - (cols - 1) * gap) / cols;
-		const imageW = cardW - 0.03;
+		const cardH = (top - bottom - (rows - 1) * gap) / rows;
+		const pad = 0.015;
+		const imageW = cardW - 2 * pad;
 		const imageH = imageW * (9 / 16);
-		const cardH = imageH + (cols > 3 ? 0.17 : 0.15);
+		// Tag chips under the name: icon and label, wrapped onto more lines when
+		// they don't fit. Sizes are estimated (troika measures text later).
+		const chipH = 0.036;
+		const chipFont = 0.017;
+		const chipIcon = 0.022;
+		const chipGap = 0.008;
+		const chipWidth = (label) => 0.012 + chipIcon + 0.008 + label.length * chipFont * 0.52 + 0.012;
+		const layouts = setting.options.map((option) => {
+			let x = 0;
+			let line = 0;
+			return (environments[option.value]?.tags ?? []).map((tag) => {
+				const { icon, label } = ENVIRONMENT_TAGS[tag];
+				const width = chipWidth(label);
+				if (x > 0 && x + width > imageW) {
+					x = 0;
+					line++;
+				}
+				const chip = { icon, label, width, x, line };
+				x += width + chipGap;
+				return chip;
+			});
+		});
+		// The same number of chip lines across a row, so its descriptions line up.
+		const chipLines = (row) => Math.max(1, ...layouts.slice(row * cols, (row + 1) * cols).flat().map((chip) => chip.line + 1));
 		const current = getSetting(setting.name);
 		setting.options.forEach((option, i) => {
 			const info = environments[option.value];
 			const col = i % cols;
 			const row = Math.floor(i / cols);
 			const card = entity({
-				position: `${LEFT + cardW / 2 + col * (cardW + gap)} ${TOP - 0.15 - cardH / 2 - row * (cardH + gap)} 0.002`,
-				'ui-button': { label: '', width: cardW, height: cardH, radius: 0.03, active: option.value === current },
+				position: `${LEFT + cardW / 2 + col * (cardW + gap)} ${top - cardH / 2 - row * (cardH + gap)} 0.002`,
+				'ui-button': { label: '', width: cardW, height: cardH, radius: 0.03 },
 			});
-			const image = entity({ position: `0 ${cardH / 2 - 0.015 - imageH / 2} 0.003` });
+			const cardTop = cardH / 2 - pad;
+			const left = -cardW / 2 + pad;
+			const image = entity({ position: `0 ${cardTop - imageH / 2} 0.003` });
 			const material = new THREE.MeshBasicMaterial({ map: environmentIcon(option.value) });
 			// Rounded like the card, so its corners stay inside it.
 			image.setObject3D('mesh', new THREE.Mesh(roundedRect(imageW, imageH, 0.02), material));
@@ -186,18 +233,42 @@ AFRAME.registerComponent('settings-panel', {
 					material.needsUpdate = true;
 				}).catch(() => {});
 			}
+			const nameY = cardTop - imageH - 0.018;
 			const name = entity({
-				position: `${-cardW / 2 + 0.015} ${cardH / 2 - 0.03 - imageH} 0.003`,
-				'ui-text': { value: info?.name ?? option.label, fontSize: 0.026, weight: 'bold', anchorX: 'left', anchorY: 'top' },
+				position: `${left} ${nameY} 0.003`,
+				'ui-text': { value: info?.name ?? option.label, fontSize: 0.03, weight: 'bold', anchorX: 'left', anchorY: 'top', maxWidth: imageW },
 			});
+			const chipsY = nameY - 0.05;
+			const chips = layouts[i].map((chip) => entity({
+				position: `${left + chip.x + chip.width / 2} ${chipsY - chipH / 2 - chip.line * (chipH + chipGap)} 0.003`,
+				'ui-rect': { width: chip.width, height: chipH, radius: chipH / 2, color: COLORS.panel },
+			}, [
+				entity({ position: `${-chip.width / 2 + 0.012 + chipIcon / 2} 0 0.001`, 'ui-icon': { name: chip.icon, size: chipIcon, color: COLORS.text } }),
+				entity({ position: `${-chip.width / 2 + 0.012 + chipIcon + 0.008} 0 0.001`, 'ui-text': { value: chip.label, fontSize: chipFont, anchorX: 'left' } }),
+			]));
 			const description = entity({
-				position: `${-cardW / 2 + 0.015} ${cardH / 2 - 0.068 - imageH} 0.003`,
-				'ui-text': { value: info?.description ?? '', fontSize: 0.017, color: COLORS.muted, anchorX: 'left', anchorY: 'top', maxWidth: cardW - 0.03, lineHeight: 1.25 },
+				position: `${left} ${chipsY - chipLines(row) * (chipH + chipGap) - 0.004} 0.003`,
+				'ui-text': { value: info?.description ?? '', fontSize: 0.019, color: COLORS.muted, anchorX: 'left', anchorY: 'top', maxWidth: imageW, lineHeight: 1.3 },
 			});
-			card.append(image, name, description);
+			card.append(image, name, ...chips, description);
+			// The current place: an outline around its card, and a badge on its picture.
+			if (option.value === current) {
+				const outline = entity({ position: '0 0 -0.001', 'ui-rect': { width: cardW + 0.016, height: cardH + 0.016, radius: 0.038, color: COLORS.accent } });
+				const badgeW = 0.11;
+				const badge = entity({
+					position: `${imageW / 2 - 0.012 - badgeW / 2} ${cardTop - 0.012 - chipH / 2} 0.004`,
+					'ui-rect': { width: badgeW, height: chipH, radius: chipH / 2, color: COLORS.accent },
+				}, [
+					entity({ position: `${-badgeW / 2 + 0.012 + chipIcon / 2} 0 0.001`, 'ui-icon': { name: 'check', size: chipIcon, color: COLORS.text } }),
+					entity({ position: `${-badgeW / 2 + 0.012 + chipIcon + 0.008} 0 0.001`, 'ui-text': { value: 'Current', fontSize: chipFont, weight: 'bold', anchorX: 'left' } }),
+				]);
+				card.append(outline, badge);
+			}
 			card.addEventListener('click', () => {
+				// Closed first: changing the setting may open the panel again (a note).
+				if (this.pickerShortcut) this.el.emit('close-request');
 				setSetting(setting.name, option.value);
-				this.showList();
+				if (!this.pickerShortcut) this.showList();
 			});
 			this.picker.appendChild(card);
 		});

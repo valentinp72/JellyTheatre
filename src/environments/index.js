@@ -21,11 +21,27 @@ import { voidLayout } from './void/void.js';
  * @property {number} [menuDistance] Library distance when not on the screen (default 2 m).
  */
 
-/** @type {Record<string, { name: string, description: string, component: string, thumbnail?: boolean, layout: EnvironmentLayout }>} */
+/**
+ * What a place is like, shown as small icons on the picker cards: where you
+ * are, how you watch (an environment can offer several postures, e.g. seats
+ * and loungers), and whether you can change seats.
+ */
+export const ENVIRONMENT_TAGS = {
+	indoor: { icon: 'indoor', label: 'Indoor' },
+	outdoor: { icon: 'outdoor', label: 'Outdoor' },
+	passthrough: { icon: 'passthrough', label: 'Passthrough' },
+	sitting: { icon: 'sitting', label: 'Sitting' },
+	lying: { icon: 'lying', label: 'Lying down' },
+	floating: { icon: 'floating', label: 'Floating' },
+	seats: { icon: 'seats', label: 'Several seats' },
+};
+
+/** @type {Record<string, { name: string, description: string, tags: (keyof typeof ENVIRONMENT_TAGS)[], component: string, thumbnail?: boolean, layout: EnvironmentLayout }>} */
 export const environments = {
 	theater: {
 		name: 'Movie theatre',
-		description: 'A big cinema: stadium seating, curtains and a giant screen.',
+		description: 'Rows of red seats, curtains and a giant screen, like a real cinema.',
+		tags: ['indoor', 'sitting', 'seats'],
 		component: 'theater-environment',
 		// Picker card: public/environments/theater.jpg (npm run screenshots).
 		thumbnail: true,
@@ -33,7 +49,8 @@ export const environments = {
 	},
 	home: {
 		name: 'Home cinema',
-		description: 'A cosy private screening room with recliners and a starry ceiling.',
+		description: 'A cosy screening room, with recliners and a starry ceiling.',
+		tags: ['indoor', 'sitting', 'seats'],
 		component: 'home-environment',
 		// Picker card: public/environments/home.jpg (npm run screenshots).
 		thumbnail: true,
@@ -41,7 +58,8 @@ export const environments = {
 	},
 	station: {
 		name: 'Space station',
-		description: 'Float in the Cupola of a space station: windows all around onto the planet, the moon and the stars.',
+		description: 'A space station Cupola, windows onto the planet and stars.',
+		tags: ['indoor', 'floating'],
 		component: 'station-environment',
 		// Picker card: public/environments/station.jpg (npm run screenshots).
 		thumbnail: true,
@@ -49,7 +67,8 @@ export const environments = {
 	},
 	cabin: {
 		name: 'Lakeside cabin',
-		description: 'A log cabin with a crackling fire, rain on the windows and a moonlit lake.',
+		description: 'A log cabin with a crackling fire, rain and a moonlit lake outside.',
+		tags: ['indoor', 'sitting', 'seats'],
 		component: 'cabin-environment',
 		// Picker card: public/environments/cabin.jpg (npm run screenshots).
 		thumbnail: true,
@@ -57,7 +76,8 @@ export const environments = {
 	},
 	jungle: {
 		name: 'Jungle hammock',
-		description: 'Lie back in a hammock in the rainforest at night, the screen stretched between two trees above you.',
+		description: 'A hammock under the rainforest canopy at night, among fireflies.',
+		tags: ['outdoor', 'lying'],
 		component: 'jungle-environment',
 		// Picker card: public/environments/jungle.jpg (npm run screenshots).
 		thumbnail: true,
@@ -65,7 +85,8 @@ export const environments = {
 	},
 	void: {
 		name: 'Dark void',
-		description: 'Nothing but the screen, in a dark quiet space.',
+		description: 'Nothing but the screen, in a quiet dark space.',
+		tags: ['sitting'],
 		component: 'void-environment',
 		// Picker card: public/environments/void.jpg (npm run screenshots).
 		thumbnail: true,
@@ -73,7 +94,8 @@ export const environments = {
 	},
 	passthrough: {
 		name: 'My room',
-		description: 'Your real surroundings (passthrough), with a screen you can move.',
+		description: 'Your real room, with a screen you can place where you like.',
+		tags: ['passthrough', 'sitting'],
 		component: 'passthrough-environment',
 		layout: passthroughLayout,
 	},

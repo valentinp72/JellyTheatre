@@ -18,7 +18,7 @@ sideload and nothing to add to your server.
 | | |
 |---|---|
 | ![Movie theatre](docs/screenshots/environment-theater.png) | ![Home cinema](docs/screenshots/environment-home.png) |
-| **Movie theatre**: stadium seating, curtains, a projection booth and a giant screen. | **Home cinema**: recliners, a sofa, bookshelves and a starry ceiling. |
+| **Movie theatre**: rows of red seats, curtains, a projection booth and a giant screen. | **Home cinema**: recliners, a sofa, bookshelves and a starry ceiling. |
 | ![Space station](docs/screenshots/environment-station.png) | ![Lakeside cabin](docs/screenshots/environment-cabin.png) |
 | **Space station**: float in a Cupola like the ISS's, windows all around onto the planet, the moon and the stars. | **Lakeside cabin**: a crackling fire, rain on the windows, a moonlit lake. |
 | ![Jungle hammock](docs/screenshots/environment-jungle.png) | ![Dark void](docs/screenshots/environment-void.png) |
@@ -28,6 +28,9 @@ You can also watch in **My room**, which uses passthrough to put the screen in y
 it. Room lighting follows the colours of the picture, so the room glows blue
 during a night scene and warm during a sunset. You can turn this off or change
 the room's brightness.
+
+Each place says what it is like: indoor or outdoor, sitting, lying down or
+floating, and whether you can change seats.
 
 ![Choosing an environment](docs/screenshots/environments.png)
 
@@ -124,7 +127,9 @@ the server's decision before you press Play.
 Settings open from the library's header, or from the gear on the controls
 during a film. They are grouped in tabs: Playback, Subtitles, Display, View
 and Account (sign out, to sign in again as someone else or on another
-server, right from VR).
+server, right from VR). To change places, the **Environment** button in the
+library's header (or the landscape icon on the controls) opens the picker
+directly.
 
 ## Roadmap
 

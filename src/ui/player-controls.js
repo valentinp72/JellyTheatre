@@ -96,9 +96,10 @@ AFRAME.registerComponent('player-controls', {
 			['voldown', { icon: 'volumeDown', tooltip: 'Volume down' }, () => this.changeVolume(-0.1)],
 			['volup', { icon: 'volumeUp', tooltip: 'Volume up' }, () => this.changeVolume(0.1)],
 			['stop', { icon: 'stop', tooltip: 'Stop' }, () => this.el.emit('stop-request')],
+			['environment', { icon: 'environment', tooltip: 'Environment' }, () => this.el.emit('settings-request', { picker: 'environment' })],
 			['settings', { icon: 'settings', tooltip: 'Settings' }, () => this.el.emit('settings-request')],
 		];
-		const gap = 0.012;
+		const gap = 0.008;
 		const rowWidth = buttons.length * BUTTON_SIZE + (buttons.length - 1) * gap;
 		this.buttons = {};
 		this.buttonRow = entity({ position: `0 ${-top + 0.012 + BUTTON_SIZE / 2} 0.002` });
