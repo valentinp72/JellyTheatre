@@ -1,15 +1,18 @@
-// Bed cinema: a smaller sister of the movie theatre, made for watching lying
-// down (in bed). Six beds in two rows instead of seats; the screen hangs high
+// Bed cinema: a sister of the movie theatre, made for watching lying down (in
+// bed). Two rows of two double beds instead of seats; the screen hangs high
 // above the front of the room, leaned back towards the beds, in a sloping
 // soffit. The theatre's style: acoustic bays with sconces and surround
 // speakers, velvet curtains, a stage with the front speakers, exit doors, a
-// projection booth and its beam. Side tables between the beds, with a lamp,
+// projection booth and its beam. Side tables beside the beds, with a lamp,
 // popcorn and a drink.
 //
 // The room matches the body: the front row lies almost flat and looks high up
-// at the screen, the back row sits up more and looks lower. Every bed carries
-// its own head position (where the eyes go); the layout's is the front middle
-// bed's. Coordinates: the screen faces +z and down, the beds' feet point to -z.
+// at the screen, the back row sits up more and looks lower. The beds point
+// straight at the screen wall, so the screen is big, high and far away: then
+// even the outer places see it only a little off to the side (a closer screen
+// would be far off their axis). Every place carries its own head position
+// (where the eyes go); the layout's is the front row's left inner place.
+// Coordinates: the screen faces +z and down, the beds' feet point to -z.
 
 import * as THREE from 'three';
 import { StaticBuilder } from '../kit/builder.js';
@@ -22,37 +25,42 @@ import * as textures from '../kit/textures.js';
 
 const deg = THREE.MathUtils.degToRad;
 
-const ROOM = { halfWidth: 4, front: -5.6, back: 5.6, height: 8 };
-const STAGE = { top: 0.45, depth: 1.3 };
-// A bed: the mattress top is this high above its floor; its head end is a
-// backrest raised by the row's recline, hinged this far from the headboard.
-const BED = { width: 1.1, length: 2.25, top: 0.51, hinge: 0.85 };
-const BED_XS = [-1.8, 0, 1.8];
-// `z`: the headboard, `floor`: the back row is on a low platform.
+const ROOM = { halfWidth: 6.2, front: -9.3, back: 5.6, height: 12.5 };
+const STAGE = { top: 0.6, depth: 1.6 };
+// A double bed: the mattress top is this high above its floor; its head end
+// is a backrest raised by the row's recline, hinged this far from the
+// headboard. Two places on it, this far either side of its middle.
+const BED = { width: 2.1, length: 2.25, top: 0.51, hinge: 0.85 };
+const PLACES = [-0.52, 0.52];
+// Two double beds a row, either side of a table; `z`: the headboards,
+// `floor`: the back row is on a low platform.
+const BED_XS = [-1.45, 1.45];
 const ROWS = [
 	{ z: 0.35, floor: 0, recline: deg(20) },
-	{ z: 3.45, floor: 0.3, recline: deg(38) },
+	{ z: 3.45, floor: 0.3, recline: deg(30) },
 ];
 const PLATFORM_FRONT = 0.95;
-// Side tables between and beside the beds, at their heads.
-const TABLE_XS = [-2.7, -0.9, 0.9, 2.7];
+// Side tables at the heads: between the beds, and outside them.
+const TABLE_XS = [-2.95, 0, 2.95];
 
+// Bed-local points: the origin is the foot of the headboard, the feet
+// towards -z.
 /** Along a raised backrest (from the hinge up), and out of it. */
 const along = (recline) => new THREE.Vector3(0, Math.sin(recline), Math.cos(recline));
 const outOf = (recline) => new THREE.Vector3(0, Math.cos(recline), -Math.sin(recline));
-const hingeOf = (x, row) => new THREE.Vector3(x, row.floor + BED.top, row.z - BED.hinge);
+const HINGE = new THREE.Vector3(0, BED.top, -BED.hinge);
 /** The eyes of someone lying on a bed, head on the pillow. */
-const headOf = (x, row) => hingeOf(x, row).addScaledVector(along(row.recline), 0.62).addScaledVector(outOf(row.recline), 0.24);
-/** Rig floor position for a bed: under its middle (where the pointer aims). */
-const seatOf = (x, row) => new THREE.Vector3(x, row.floor, row.z - 0.08 - BED.length / 2);
+const localHead = (row) => HINGE.clone().addScaledVector(along(row.recline), 0.62).addScaledVector(outOf(row.recline), 0.24);
+/** Rig floor position for a place: under its middle (where the pointer aims). */
+const MIDDLE = new THREE.Vector3(0, 0, -0.08 - BED.length / 2);
 
-// The screen, seen from the front middle bed this high above the horizon and
-// this far away, leaned back to face it.
-const HEAD = headOf(0, ROWS[0]);
+// The screen, seen from the front row's middle this high above the horizon
+// and this far away, leaned back to face it.
 const SCREEN_ELEVATION = deg(55);
-const SCREEN_DISTANCE = 6.6;
-const SCREEN_SIZE = { maxWidth: 6.4, maxHeight: 3.6 };
-const SCREEN_CENTER = HEAD.clone().addScaledVector(new THREE.Vector3(0, Math.sin(SCREEN_ELEVATION), -Math.cos(SCREEN_ELEVATION)), SCREEN_DISTANCE);
+const SCREEN_DISTANCE = 11;
+const SCREEN_SIZE = { maxWidth: 10.7, maxHeight: 6 };
+const AXIS_HEAD = localHead(ROWS[0]).add(new THREE.Vector3(0, ROWS[0].floor, ROWS[0].z));
+const SCREEN_CENTER = AXIS_HEAD.clone().addScaledVector(new THREE.Vector3(0, Math.sin(SCREEN_ELEVATION), -Math.cos(SCREEN_ELEVATION)), SCREEN_DISTANCE);
 // The screen's plane: its up (leaning back over the beds) and its front.
 const SCREEN_UP = new THREE.Vector3(0, Math.cos(SCREEN_ELEVATION), Math.sin(SCREEN_ELEVATION));
 const SCREEN_NORMAL = new THREE.Vector3(0, -Math.sin(SCREEN_ELEVATION), Math.cos(SCREEN_ELEVATION));
@@ -65,14 +73,30 @@ const SOFFIT_FRONT_Y = onScreenPlane(SOFFIT_FROM).y;
 /** Depth (z) where the soffit is at height `y`. */
 const soffitZ = (y) => SCREEN_CENTER.z + ((y - SCREEN_CENTER.y) / SCREEN_UP.y) * SCREEN_UP.z;
 
+/**
+ * The places, two on each bed: where the eyes go, the rig's floor position,
+ * and the gaze, head straight on the pillow: along the bed, at the screen's
+ * height (the view is recentered on it; off the axis, you turn your head on
+ * the pillow towards the screen, by 8° to 17°).
+ */
+const SPOTS = ROWS.flatMap((row) => BED_XS.flatMap((bedX) => PLACES.map((dx) => {
+	const offset = new THREE.Vector3(bedX + dx, row.floor, row.z);
+	const head = localHead(row).add(offset);
+	const elevation = Math.atan2(SCREEN_CENTER.y - head.y, head.z - SCREEN_CENTER.z);
+	return { head, seat: MIDDLE.clone().add(offset), gaze: new THREE.Vector3(0, Math.sin(elevation), -Math.cos(elevation)) };
+})));
+// The front row's left inner place.
+const DEFAULT_SPOT = SPOTS[1];
+
 export const bedsLayout = {
 	screen: {
 		position: { x: SCREEN_CENTER.x, y: SCREEN_CENTER.y, z: SCREEN_CENTER.z },
 		...SCREEN_SIZE,
 		tilt: THREE.MathUtils.radToDeg(SCREEN_ELEVATION),
 	},
-	seat: (({ x, y, z }) => ({ x, y, z }))(seatOf(0, ROWS[0])),
-	head: { x: HEAD.x, y: HEAD.y, z: HEAD.z },
+	seat: (({ x, y, z }) => ({ x, y, z }))(DEFAULT_SPOT.seat),
+	head: (({ x, y, z }) => ({ x, y, z }))(DEFAULT_SPOT.head),
+	gaze: (({ x, y, z }) => ({ x, y, z }))(DEFAULT_SPOT.gaze),
 	screenLight: true,
 };
 
@@ -124,20 +148,18 @@ defineEnvironment('beds', {
 		buildBackWall(b, m);
 		const seats = new SeatSpots();
 		for (const row of ROWS) {
-			for (const x of BED_XS) {
-				bed(b, m, x, row);
-				seats.add(Object.assign(seatOf(x, row), { head: headOf(x, row) }));
-			}
-			for (const [i, x] of TABLE_XS.entries()) sideTable(b, m, [x, row.floor, row.z - 0.3], i);
+			for (const x of BED_XS) bed(new Placer(b, [x, row.floor, row.z]), m, row);
+			for (const [i, x] of TABLE_XS.entries()) sideTable(b, m, [x, row.floor, row.z - 0.3], 0, i);
 		}
+		for (const { head, seat, gaze } of SPOTS) seats.add(Object.assign(seat.clone(), { head, gaze }));
 		env.seats = seats;
 		env.group.add(b.build());
 
 		const lighting = new EnvironmentLighting(env.group, {
 			sceneEl: env.sceneEl,
-			screenLightPosition: onScreenPlane(0, 0, 1.5),
-			screenLightDistance: 16,
-			screenLightScale: 0.6,
+			screenLightPosition: onScreenPlane(0, 0, 2),
+			screenLightDistance: 24,
+			screenLightScale: 0.8,
 		});
 		lighting.addFixture(m.sconce);
 		lighting.addFixture(m.cove);
@@ -175,8 +197,8 @@ function buildShell(b, m) {
 		const length = back - 0.3 - coveFrom;
 		b.add(box(0.06, 0.05, length), m.cove, { position: [side * (halfWidth - 0.3), coveY, coveFrom + length / 2] });
 		b.add(box(0.26, 0.1, length), m.trim, { position: [side * (halfWidth - 0.17), coveY - 0.05, coveFrom + length / 2] });
-		for (const z of [-0.4, 2.1, 4.6]) {
-			b.add(new THREE.CircleGeometry(0.12, 20), m.downlight, { position: [side * 3.1, height - 0.01, z], rotation: [Math.PI / 2, 0, 0] });
+		for (const z of [-1.2, 1.7, 4.6]) {
+			b.add(new THREE.CircleGeometry(0.14, 20), m.downlight, { position: [side * 4.6, height - 0.01, z], rotation: [Math.PI / 2, 0, 0] });
 		}
 	}
 
@@ -193,9 +215,9 @@ function buildFront(b, m) {
 	const { halfWidth, front } = ROOM;
 	b.add(tiledBox(halfWidth * 2, STAGE.top, STAGE.depth, 1.5), m.wood, { position: [0, STAGE.top / 2, front + STAGE.depth / 2] });
 	b.add(box(halfWidth * 2, 0.025, 0.025), m.stageLight, { position: [0, STAGE.top - 0.02, front + STAGE.depth + 0.01] });
-	for (const x of [-2.7, 0, 2.7]) speaker(b, m, [x, STAGE.top, front + 0.75], Math.PI, { height: 1.2 });
+	for (const x of [-4.2, 0, 4.2]) speaker(b, m, [x, STAGE.top, front + 0.85], Math.PI, { height: 1.6 });
 	const height = SOFFIT_FRONT_Y - STAGE.top;
-	b.add(foldedCurtain(halfWidth * 2, height, { folds: 24, depth: 0.12 }), m.velvet, { position: [0, STAGE.top + height / 2, front + 0.25] });
+	b.add(foldedCurtain(halfWidth * 2, height, { folds: 36, depth: 0.14 }), m.velvet, { position: [0, STAGE.top + height / 2, front + 0.25] });
 	b.add(box(halfWidth * 2, 0.22, 0.3), m.dark, { position: [0, SOFFIT_FRONT_Y - 0.11, front + 0.15] });
 }
 
@@ -226,12 +248,12 @@ function buildWalls(b, m) {
 		for (let i = 0; i < bays; i++) {
 			const z = front + i * bayWidth;
 			const center = z + bayWidth / 2;
-			b.add(box(0.05, 5.5, bayWidth - 0.36), m.acoustic, { position: [wallX + inward * 0.025, 3.9, center] });
-			if (i > 0) b.add(box(0.2, height, 0.3), m.dark, { position: [wallX + inward * 0.1, height / 2, z] });
-			b.add(box(0.09, 0.28, 0.22), m.sconce, { position: [wallX + inward * 0.1, 4.65, center] });
-			b.add(box(0.12, 0.07, 0.28), m.trim, { position: [wallX + inward * 0.1, 4.48, center] });
-			b.add(new THREE.PlaneGeometry(1.2, 2.1), m.sconceGlow, { position: [wallX + inward * 0.07, 5.2, center], rotation: [0, inward * Math.PI / 2, 0] });
-			if (i % 2 === 1) b.add(box(0.24, 0.55, 0.4), m.grille, { position: [wallX + inward * 0.14, 6.1, center] });
+			b.add(box(0.06, 8.4, bayWidth - 0.4), m.acoustic, { position: [wallX + inward * 0.03, 5.3, center] });
+			if (i > 0) b.add(box(0.22, height, 0.34), m.dark, { position: [wallX + inward * 0.11, height / 2, z] });
+			b.add(box(0.1, 0.32, 0.26), m.sconce, { position: [wallX + inward * 0.12, 6.4, center] });
+			b.add(box(0.14, 0.08, 0.32), m.trim, { position: [wallX + inward * 0.12, 6.22, center] });
+			b.add(new THREE.PlaneGeometry(1.5, 2.6), m.sconceGlow, { position: [wallX + inward * 0.08, 7.1, center], rotation: [0, inward * Math.PI / 2, 0] });
+			if (i % 2 === 1) b.add(box(0.26, 0.62, 0.46), m.grille, { position: [wallX + inward * 0.16, 8.6, center] });
 		}
 
 		// Exit door near the front, with its lit sign.
@@ -267,40 +289,40 @@ function wedge(width, length, angle) {
 }
 
 /**
- * A cinema bed, its head at the headboard (`row.z`), feet towards the screen:
+ * A double cinema bed, placed by `p` at its headboard, feet towards -z:
  * upholstered base and headboard, a mattress whose head end is raised by the
- * row's recline, a pillow and a velvet throw folded at the foot.
+ * row's recline, two pillows and a velvet throw folded at the foot.
+ * @param {Placer} p
  */
-function bed(b, m, x, row) {
-	const { floor, recline } = row;
-	const foot = row.z - 0.08 - BED.length;
-	const middle = row.z - 0.08 - BED.length / 2;
-	const add = (geometry, material, [px, py, pz], rotation = [0, 0, 0]) => b.add(geometry, material, { position: [px, py, pz], rotation });
-	add(box(BED.width - 0.12, 0.1, BED.length - 0.16), m.dark, [x, floor + 0.05, middle]);
-	add(box(BED.width - 0.3, 0.02, 0.02), m.stepLight, [x, floor + 0.05, foot + 0.07]);
-	add(roundedBox(BED.width + 0.08, 0.26, BED.length, 0.04), m.upholstery, [x, floor + 0.23, middle]);
+function bed(p, m, row) {
+	const { recline } = row;
+	const foot = -0.08 - BED.length;
+	p.add(box(BED.width - 0.12, 0.1, BED.length - 0.16), m.dark, [0, 0.05, MIDDLE.z]);
+	p.add(box(BED.width - 0.3, 0.02, 0.02), m.stepLight, [0, 0.05, foot + 0.07]);
+	p.add(roundedBox(BED.width + 0.08, 0.26, BED.length, 0.04), m.upholstery, [0, 0.23, MIDDLE.z]);
 	// The headboard rises a little above the raised backrest.
 	const headboard = BED.top + BED.hinge * Math.sin(recline) + 0.15;
-	add(roundedBox(BED.width + 0.12, headboard, 0.16, 0.05), m.upholstery, [x, floor + headboard / 2, row.z]);
+	p.add(roundedBox(BED.width + 0.12, headboard, 0.16, 0.05), m.upholstery, [0, headboard / 2, 0]);
 
 	// Mattress: flat from the foot to the hinge, then the raised backrest on its wedge.
-	const hinge = hingeOf(x, row);
-	const flat = hinge.z - (foot + 0.04);
-	add(roundedBox(BED.width - 0.04, 0.15, flat, 0.05), m.linen, [x, floor + BED.top - 0.075, foot + 0.04 + flat / 2]);
-	add(wedge(BED.width - 0.08, BED.hinge - 0.1, recline), m.upholstery, [x, floor + 0.36, hinge.z]);
-	const rest = hinge.clone().addScaledVector(along(recline), BED.hinge / 2).addScaledVector(outOf(recline), -0.075);
-	add(roundedBox(BED.width - 0.04, 0.15, BED.hinge, 0.05), m.linen, rest.toArray(), [-recline, 0, 0]);
-	const pillow = hinge.clone().addScaledVector(along(recline), 0.6).addScaledVector(outOf(recline), 0.05);
-	add(roundedBox(0.62, 0.11, 0.36, 0.05), m.pillow, pillow.toArray(), [-recline, 0, 0]);
+	const flat = HINGE.z - (foot + 0.04);
+	p.add(roundedBox(BED.width - 0.04, 0.15, flat, 0.05), m.linen, [0, BED.top - 0.075, foot + 0.04 + flat / 2]);
+	p.add(wedge(BED.width - 0.08, BED.hinge - 0.1, recline), m.upholstery, [0, 0.36, HINGE.z]);
+	const rest = HINGE.clone().addScaledVector(along(recline), BED.hinge / 2).addScaledVector(outOf(recline), -0.075);
+	p.add(roundedBox(BED.width - 0.04, 0.15, BED.hinge, 0.05), m.linen, rest.toArray(), [-recline, 0, 0]);
+	for (const x of PLACES) {
+		const pillow = HINGE.clone().addScaledVector(along(recline), 0.6).addScaledVector(outOf(recline), 0.05).setX(x);
+		p.add(roundedBox(0.62, 0.11, 0.36, 0.05), m.pillow, pillow.toArray(), [-recline, 0, 0]);
+	}
 
 	// The throw, folded on the foot and hanging over its end.
-	add(roundedBox(BED.width + 0.02, 0.04, 0.55, 0.015), m.velvet, [x, floor + BED.top + 0.015, foot + 0.33]);
-	add(box(BED.width + 0.02, 0.2, 0.03), m.velvet, [x, floor + BED.top - 0.08, foot + 0.045]);
+	p.add(roundedBox(BED.width + 0.02, 0.04, 0.55, 0.015), m.velvet, [0, BED.top + 0.015, foot + 0.33]);
+	p.add(box(BED.width + 0.02, 0.2, 0.03), m.velvet, [0, BED.top - 0.08, foot + 0.045]);
 }
 
 /** Round side table with a lamp, a box of popcorn and a drink. */
-function sideTable(b, m, position, seed) {
-	const p = new Placer(b, position);
+function sideTable(b, m, position, rotationY, seed) {
+	const p = new Placer(b, position, rotationY);
 	const top = 0.55;
 	p.add(new THREE.CylinderGeometry(0.17, 0.2, 0.02, 16), m.metal, [0, 0.01, 0]);
 	p.add(new THREE.CylinderGeometry(0.025, 0.025, top - 0.03, 8), m.metal, [0, (top - 0.03) / 2, 0]);

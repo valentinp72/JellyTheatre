@@ -17,6 +17,8 @@ import { voidLayout } from './void/void.js';
  * tilt: degrees the screen leans back (above a lying viewer)
  * @property {{ x: number, y: number, z: number }} seat Rig (floor) position of the viewer.
  * @property {{ x: number, y: number, z: number }} [head] The viewer lies down, eyes here.
+ * @property {{ x: number, y: number, z: number }} [gaze] Lying off the screen's axis: where
+ * the eyes look, head straight on the pillow (default: at the screen).
  * @property {boolean} [screenLight] Lit by the picture.
  * @property {boolean} [ar] Needs an immersive-ar session (passthrough).
  * @property {number} [menuDistance] Library distance when not on the screen (default 2 m).
@@ -50,7 +52,7 @@ export const environments = {
 	},
 	beds: {
 		name: 'Bed cinema',
-		description: 'A smaller theatre with beds, the screen leaning over you.',
+		description: 'Double beds, and a giant screen leaning over you from above.',
 		tags: ['indoor', 'lying', 'seats'],
 		component: 'beds-environment',
 		// Picker card: public/environments/beds.jpg (npm run screenshots).

@@ -104,7 +104,12 @@ ships.
   (where the eyes go) and `screen.tilt` in their layout: the screen leans back
   above the viewer, so the room stays level and matches the body (never
   rotate the room to the eyes instead: it makes users sick). With several
-  beds, each seat spot carries its own `head`. Keep the line of sight from
+  places, each seat spot carries its own `head`, and off the screen's axis a
+  `gaze` (straight along the bed, at the screen's height): the view is
+  recentered on it, so the body lines up with the (straight) bed, and the
+  user turns their head on the pillow to watch, as in a real bed cinema. Keep
+  every place within ~20° of the screen (seen from above): a far, big, high
+  screen. Keep the line of sight from
   `head` to the screen clear (the jungle's `blocksScreen` / `plantHidesScreen`).
 - Icons are geometry (src/ui/icons.js), not font glyphs: the bundled Inter
   subset lacks most symbols. Icon buttons should set a `tooltip`.

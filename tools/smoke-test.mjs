@@ -123,27 +123,31 @@ async function main() {
 			await expect(`environment "${key}" builds`, (key) => Boolean(document.querySelector('#environment').components[`${key}-environment`]), key);
 			if (key === 'jungle' || key === 'beds') {
 				// Lying down: the eyes on the pillow, looking straight at the screen
-				// above, the picture upright; in the bed cinema, from the last bed too.
-				await expect(`lying down in "${key}": the screen fills the view, upright`, (key) => {
+				// above, the head level (no roll); in the bed cinema, from every place,
+				// looking along the bed (its gaze), the screen less than 20° off it
+				// (seen from above).
+				await expect(`lying down in "${key}": looking at the screen (or along the bed), the room level`, (key) => {
 					const { Vector3 } = AFRAME.THREE;
 					const controls = document.querySelector('a-scene').components['view-controls'];
-					const seats = controls.seats();
+					const screenAt = new Vector3().setFromMatrixPosition(document.querySelector('#screen').object3D.matrixWorld);
+					const flat = (v) => new Vector3(v.x, 0, v.z).normalize();
 					const lookingAtScreen = (seat) => {
 						controls.backToSeat(seat);
 						const camera = document.querySelector('#camera').object3D.matrixWorld;
-						const screen = document.querySelector('#screen').object3D.matrixWorld;
 						const head = new Vector3().setFromMatrixPosition(camera);
-						const toScreen = new Vector3().setFromMatrixPosition(screen).sub(head).normalize();
+						const toScreen = screenAt.clone().sub(head).normalize();
+						const gazeSetting = new Vector3().copy(controls.data.gaze);
+						const gaze = seat?.gaze ?? (gazeSetting.lengthSq() > 0 ? gazeSetting : toScreen);
 						const forward = new Vector3(0, 0, -1).transformDirection(camera);
 						const up = new Vector3(0, 1, 0).transformDirection(camera);
-						const onPillow = !seat?.head || head.distanceTo(seat.head) < 1e-3;
-						// Upright: the head's up is the picture's, seen across the line of sight.
-						const screenUp = new Vector3(0, 1, 0).transformDirection(screen);
-						const upright = screenUp.addScaledVector(toScreen, -screenUp.dot(toScreen)).normalize();
-						return onPillow && forward.dot(toScreen) > 0.999 && up.dot(upright) > 0.999;
+						const level = new Vector3(0, 1, 0).addScaledVector(gaze, -gaze.y).normalize();
+						const onPillow = !seat || head.distanceTo(seat.head) < 1e-3;
+						// The bed's axis (from the pillow to its middle) along the gaze, towards the screen.
+						const facing = !seat || (flat(seat.clone().sub(seat.head)).dot(flat(gaze)) > 0.999 && flat(gaze).angleTo(flat(toScreen)) < AFRAME.THREE.MathUtils.degToRad(20));
+						return onPillow && facing && forward.dot(gaze) > 0.999 && up.dot(level) > 0.999;
 					};
 					// (Back on the default seat last.)
-					return (key === 'beds' ? [seats.at(-1), undefined] : [undefined]).every(lookingAtScreen);
+					return [...(key === 'beds' ? controls.seats() : []), undefined].every(lookingAtScreen);
 				}, key);
 			}
 		}

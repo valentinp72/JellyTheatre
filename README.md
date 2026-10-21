@@ -18,7 +18,7 @@ sideload and nothing to add to your server.
 | | |
 |---|---|
 | ![Movie theatre](docs/screenshots/environment-theater.png) | ![Bed cinema](docs/screenshots/environment-beds.png) |
-| **Movie theatre**: rows of red seats, curtains, a projection booth and a giant screen. | **Bed cinema**: made for watching in bed. A smaller theatre with six beds, popcorn on the side tables, and the screen leaning out high above you, facing your pillow. |
+| **Movie theatre**: rows of red seats, curtains, a projection booth and a giant screen. | **Bed cinema**: made for watching in bed. Double beds for two, popcorn on the side tables, and a giant screen leaning out high above you, facing the pillows. |
 | ![Home cinema](docs/screenshots/environment-home.png) | ![Space station](docs/screenshots/environment-station.png) |
 | **Home cinema**: recliners, a sofa, bookshelves and a starry ceiling. | **Space station**: float in a Cupola like the ISS's, windows all around onto the planet, the moon and the stars. |
 | ![Lakeside cabin](docs/screenshots/environment-cabin.png) | ![Jungle hammock](docs/screenshots/environment-jungle.png) |

@@ -7,11 +7,15 @@
 // - Recenter: with the headset's own recenter (hold the Meta button), or from
 //   the settings. Upright, only the direction is corrected and the room stays
 //   level; reclined or lying down (head pointing well above the horizon), the
-//   view is also tilted so the screen is in front of your eyes, upright, and
+//   view is also tilted so the screen is in front of your eyes, head level, and
 //   the menus (the `view` entity) come in front of your eyes too.
 // - Environments where the viewer lies down (a hammock, beds) are always
 //   recentered that way in VR, and put the viewer's head at a fixed spot
-//   (`head`; with several beds, each seat carries its own `head`).
+//   (`head`; with several beds, each seat carries its own `head`). A bed off
+//   the screen's axis also has its own `gaze`: straight along the bed, at the
+//   screen's height. The view is recentered on it, not on the screen, so the
+//   body lines up with the bed; you turn your head on the pillow to watch, as
+//   in a real bed cinema (and then the picture looks upright).
 // - Left stick click: back to your seat.
 //
 // Everything moves the camera rig; emits `rig-moved` on the scene afterwards.
@@ -53,6 +57,9 @@ AFRAME.registerComponent('view-controls', {
 		// `head` (a world position) instead of seated height above the seat.
 		lying: { type: 'boolean', default: false },
 		head: { type: 'vec3', default: { x: 0, y: 1, z: 0 } },
+		// Lying down: where the eyes look when the head rests straight on the
+		// pillow (default, all zero: at the screen).
+		gaze: { type: 'vec3', default: { x: 0, y: 0, z: 0 } },
 		// Entity whose environment component lists the seats (seatPositions()).
 		environment: { type: 'selector', default: '#environment' },
 	},
@@ -266,7 +273,8 @@ AFRAME.registerComponent('view-controls', {
 			this.rotateAroundHead(levelled.multiply(rig.quaternion.clone().invert()));
 		}
 		const head = this.headPosition();
-		const toScreen = new THREE.Vector3().copy(this.data.target).sub(head).normalize();
+		const gaze = new THREE.Vector3().copy(this.seat?.gaze ?? this.data.gaze);
+		const toScreen = this.data.lying && gaze.lengthSq() > 0 ? gaze.normalize() : new THREE.Vector3().copy(this.data.target).sub(head).normalize();
 		const forward = this.headForward();
 		// (On the flat page, the room stays level: the view is aimed instead.)
 		const immersive = this.el.sceneEl.is('vr-mode') || this.el.sceneEl.is('ar-mode');
@@ -281,26 +289,19 @@ AFRAME.registerComponent('view-controls', {
 			this.rotateAroundHead(new THREE.Quaternion().setFromUnitVectors(forward, toScreen));
 			return;
 		}
-		// Gaze onto the screen, and the top of the head towards the top of the
-		// picture (else it could look rotated, depending on how the user lies).
+		// Gaze onto the screen, and the top of the head level, towards the sky
+		// (else the view could look rolled, depending on how the user lies). Not
+		// towards the top of the picture: seen from the side, a tilted screen's up
+		// leans, and following it would roll the whole room.
 		const camera = this.data.camera.object3D;
 		const headUp = new THREE.Vector3(0, 1, 0).transformDirection(camera.matrixWorld);
-		const screenUp = this.screenUp();
 		const from = frame(forward, headUp);
-		const to = frame(toScreen, screenUp.sub(toScreen.clone().multiplyScalar(screenUp.dot(toScreen))));
+		const to = frame(toScreen, UP);
 		if (!from || !to) {
 			this.rotateAroundHead(new THREE.Quaternion().setFromUnitVectors(forward, toScreen));
 			return;
 		}
 		this.rotateAroundHead(new THREE.Quaternion().setFromRotationMatrix(to.multiply(from.transpose())));
-	},
-
-	/** World "up" of the picture (the screen can be tilted). */
-	screenUp() {
-		const screen = document.getElementById('screen')?.object3D;
-		if (!screen) return UP.clone();
-		screen.updateMatrixWorld();
-		return new THREE.Vector3(0, 1, 0).transformDirection(screen.matrixWorld);
 	},
 
 	/**
@@ -328,9 +329,11 @@ AFRAME.registerComponent('view-controls', {
 
 	/**
 	 * Back on the seat (default: the environment's), level, facing the screen.
-	 * @param {{ x: number, y: number, z: number, head?: THREE.Vector3 }} [seat]
+	 * @param {{ x: number, y: number, z: number, head?: THREE.Vector3, gaze?: THREE.Vector3 }} [seat]
 	 */
 	backToSeat(seat = this.data.seat) {
+		// (Recentering later uses this seat's gaze.)
+		this.seat = seat;
 		const rig = this.data.rig.object3D;
 		rig.quaternion.identity();
 		if (this.data.lying) {

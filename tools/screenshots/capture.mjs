@@ -46,7 +46,7 @@ const ENVIRONMENT_FRAMES = { theater: 8, beds: 16, home: 12, station: 30, cabin:
 const ENVIRONMENT_PITCH = { jungle: 0.78 };
 // Or from another spot (eyes, yaw, pitch): the bed cinema from its back
 // corner, to show the beds.
-const ENVIRONMENT_VIEWPOINT = { beds: { eyes: [-2.5, 2.7, 5.3], yaw: -0.26, pitch: 0.02 } };
+const ENVIRONMENT_VIEWPOINT = { beds: { eyes: [-4.4, 3.2, 5.2], yaw: -0.3, pitch: 0.15 } };
 
 /** Fallback: a colorful test clip (generated fractal zoom) and invented subtitles. */
 function prepareMedia() {

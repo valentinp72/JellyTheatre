@@ -223,3 +223,12 @@ Next features are in the [README roadmap](../README.md#roadmap).
   you sick). Lying seats: each bed's seat spot carries its own `head`, so
   teleporting lands with the eyes on that pillow. `projectorBeam` moved to
   the kit (shared with the theatre).
+- **v0.5.1**: the bed cinema's side places felt off: the reclined recenter
+  turned the top of the head towards the top of the picture, which, seen
+  from the side, rolled the whole room (up to 21°). The recenter now keeps
+  the head level. The room was rebuilt around two straight double beds per
+  row (8 places) and a bigger, farther screen (10.7 m wide, 11 m away, still
+  55° up from the front row), so every place is within 17° of it. Places off
+  the axis carry a `gaze` (along the bed, at the screen's height): the view
+  is recentered on it, so the body lines up with the bed and you turn your
+  head on the pillow to watch, which keeps the picture upright (within 3°).

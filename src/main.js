@@ -133,7 +133,7 @@ function setupEnvironment(key) {
 	if (layout.head) rigEl.object3D.position.set(layout.head.x, layout.head.y, layout.head.z).sub(cameraEl.object3D.position);
 	lookAtScreenFlat(layout);
 	updateColorSampling();
-	sceneEl.setAttribute('view-controls', { target: position, seat: layout.seat, lying: Boolean(layout.head), head: layout.head ?? { x: 0, y: 1, z: 0 } });
+	sceneEl.setAttribute('view-controls', { target: position, seat: layout.seat, lying: Boolean(layout.head), head: layout.head ?? { x: 0, y: 1, z: 0 }, gaze: layout.gaze ?? { x: 0, y: 0, z: 0 } });
 	setScreenMovable(Boolean(layout.ar));
 	environment()?.setHouseLights(!player.isActive);
 	placeLibrary();
